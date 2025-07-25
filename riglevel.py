@@ -73,7 +73,7 @@ class Riglevel (Frame):
                if ext in self.audioFileTypes and not name.endswith("_normalized"):
                   songArr.append(file)
       else:
-         f = filedialog.askopenfilename(filetypes = (("Music files", "*.mp3 *.ogg, *.flac *.m4a *.wav"),("All files","*")))
+         f = filedialog.askopenfilename(filetypes = (("Music files", "*.mp3, *.ogg, *.opus, *.flac, *.m4a, *.wav"),("All files","*")))
          # leave function if user cancels dialog
          if f == "": return
 
@@ -151,14 +151,14 @@ class Riglevel (Frame):
             self.thread = None
             return
          # normalize song to specified dBFS level
-         change = target - sound.dBFS
-         print("   File has volume {} dBFS, target is {} dBFS; applying {} dBFS gain.".format(sound.dBFS, target, change))
+         change = target - sound.max_dBFS
+         print("   File has peak of {} dBFS, target is {} dBFS; applying {} dBFS gain.".format(sound.max_dBFS, target, change))
          output = sound.apply_gain(change)
 
          # export normalized song
-         outfile = name + "_normalized.mp3"
+         outfile = name + "_normalized.opus"
          print("   Writing normalised file to {}".format(outfile))
-         output.export(outfile, "mp3", bitrate="192k")
+         output.export(outfile, format="opus", parameters=["-c:a", "libopus", "-b:a", "160k"])
 
          # tick up the counter and update progress bar accordingly
          count += 1
