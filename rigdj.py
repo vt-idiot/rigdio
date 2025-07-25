@@ -216,7 +216,7 @@ class SongRow:
 
    def openFile (self):
       # get a file
-      filename = filedialog.askopenfilename(filetypes = (("Music files", "*.mp3 *.ogg, *.flac *.m4a *.wav"),("All files","*")))
+      filename = filedialog.askopenfilename(filetypes = (("Music files", "*.mp3, *.ogg, *.opus, *.flac, *.m4a, *.wav"),("All files","*")))
       # insert into songNameEntry (callback automatically invoked)
       self.songNameEntry.delete(0,END)
       self.songNameEntry.insert(0,filename)
