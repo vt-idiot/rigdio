@@ -580,16 +580,20 @@ class PlayerManager:
          self.lastSong.song.command("stop")
          self.lastSong.reloadSong()
 
-   # in-place reset: pauses any playing song and seeks it back to the start
-   # without reloading the physical file
+   # in-place reset: pauses any playing song and seeks all songs back to the start
+   # without reloading the physical files
    def reset (self):
       if self.song is not None:
          self.pauseSong()
-      if self.lastSong is not None:
-         self.lastSong.song.time_pos = 0
-         self.lastSong.firstPlay = True
-         _position_cache.pop(abspath(self.lastSong.songname), None)
-         self.lastSong = None
+      # full reset: seek every song to its start, clear cached playback positions,
+      # and reset first-play state so start instructions run again on next play
+      for clist in self.clists:
+         _position_cache.pop(abspath(clist.songname), None)
+         if hasattr(clist, 'firstPlay'):
+            clist.firstPlay = True
+         if hasattr(clist, 'song') and isinstance(clist.song, mpv.MPV):
+            clist.song.time_pos = 0
+      self.lastSong = None
       self.warcry = True
 
    # writes currently playing song's details to title.log, clearing it after a set amount of time

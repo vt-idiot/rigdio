@@ -1,3 +1,9 @@
+13/08/26
+- Loading a 4ccm now fully resets the team previously in that slot (stops music,
+  clears cached positions, resets event timers) before replacing it
+- Fixed the Reset button only clearing the most recently played song's cached position
+  instead of all songs on the team; it now fully resets every song's playback state
+
 31/07/26 - Version v2.1.0 & RigDJ v1.15.0
 - Reworked volume sliders to use perceptual dB scaling instead of raw values
   Sliders now feel more linear to the ear instead of dropping off too quickly at low values

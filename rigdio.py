@@ -315,6 +315,23 @@ class Rigdio (Frame):
 
       self.after(50, poll)
 
+   def _resetTeamBeforeLoad (self, home):
+      """Fully reset the team currently in the given slot before it's replaced.
+      Stops music, clears cached playback positions, and resets event timers —
+      no confirmation dialog."""
+      team = self.home if home else self.away
+      if team is None:
+         return
+      # stop any active chant from this team
+      if self.chantsManager.activeChant is not None:
+         self.chantsManager.endThread()
+      # full in-place reset: stop music, clear position cache, reset firstPlay/warcry
+      team.reset()
+      # re-enable the playback speed slider in case a song was playing
+      self.disablePlaybackSpeedSlider(False)
+      # reset event last-played times for this side
+      self.events.reset(home)
+
    def _finishLegacyLoad (self, f, home, result):
       tmusic, tname, events = result
       # retrieve list of song files that could not be found
@@ -338,6 +355,7 @@ class Rigdio (Frame):
       if home:
          self.game.home_name = tname
          if self.home is not None:
+            self._resetTeamBeforeLoad(True)
             self.home.grid_forget()
             self.home.clear()
          self.home = TeamMenuLegacy(self, tname, tmusic, True, self.game)
@@ -366,6 +384,7 @@ class Rigdio (Frame):
       else:
          self.game.away_name = tname
          if self.away is not None:
+            self._resetTeamBeforeLoad(False)
             self.away.grid_forget()
             self.away.clear()
          self.away = TeamMenuLegacy(self, tname, tmusic, False, self.game)
