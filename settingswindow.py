@@ -55,11 +55,17 @@ SETTINGS_META = [
 ]
 
 class SettingsWindow:
-   """Modal settings window for rigdio. Edits config.yml settings with
-   explanations and Save/Cancel buttons. All settings require restart."""
+   """Modal settings window. Edits config.yml settings with
+   explanations and Save/Cancel buttons. Most settings require restart."""
 
-   def __init__(self, parent):
+   def __init__(self, parent, restart=True, onsave=None):
       self.parent = parent
+      # when restart=False (e.g. opened from rigdj), the restart note and
+      # "Save and Restart" button are hidden — only Save/Cancel are shown
+      self.restart = restart
+      # optional callback invoked after saving, if any settings changed
+      # (e.g. rigdj uses it to apply dark mode live without restarting)
+      self.onsave = onsave
       self.win = Toplevel(parent)
       self.win.title("Settings")
       self.win.transient(parent)
@@ -117,18 +123,20 @@ class SettingsWindow:
                self.widgets[key] = sc
                self.vars[key] = var
             row += 1
-      # restart note
-      Label(self.win, text="All settings require restarting rigdio to take effect",
-            fg="grey").grid(row=row, column=0, columnspan=3, sticky=W,
-               padx=10, pady=(5,0))
-      row += 1
+      # restart note (hidden when opened without restart support, e.g. rigdj)
+      if self.restart:
+         Label(self.win, text="All settings require restarting to take effect",
+               fg="grey").grid(row=row, column=0, columnspan=3, sticky=W,
+                  padx=10, pady=(5,0))
+         row += 1
       # Save / Save & Restart / Cancel buttons
       btnFrame = Frame(self.win)
       btnFrame.grid(row=row, column=0, columnspan=3, pady=10)
       Button(btnFrame, text="Save", command=self.save,
          bg=self.colours["reset"]).pack(side=LEFT, padx=5)
-      Button(btnFrame, text="Save and Restart", command=self.saveAndRestart,
-         bg=self.colours["reset"]).pack(side=LEFT, padx=5)
+      if self.restart:
+         Button(btnFrame, text="Save and Restart", command=self.saveAndRestart,
+            bg=self.colours["reset"]).pack(side=LEFT, padx=5)
       Button(btnFrame, text="Cancel", command=self.cancel).pack(side=LEFT, padx=5)
 
    def _collectValues(self):
@@ -140,16 +148,23 @@ class SettingsWindow:
 
    def save(self):
       """Persist all settings to config.yml."""
+      changed_keys = []
+      for key in self.vars:
+         newval = self.vars[key].get()
+         if self.original.get(key) != newval:
+            changed_keys.append(key)
       self._collectValues()
       saveConfig()
-      print("Settings saved. Restart rigdio to apply changes.")
+      print("Settings saved. Restart to apply changes.")
       self.win.destroy()
+      if self.onsave and changed_keys:
+         self.onsave(changed_keys)
 
    def saveAndRestart(self):
-      """Persist settings and restart rigdio immediately."""
+      """Persist settings and restart immediately."""
       self._collectValues()
       saveConfig()
-      print("Settings saved. Restarting rigdio...")
+      print("Settings saved. Restarting...")
       # close the settings window and main window, then relaunch
       self.win.destroy()
       root = self.parent.winfo_toplevel()

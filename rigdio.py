@@ -600,9 +600,10 @@ def main ():
    rigdio = Rigdio(master)
    rigdio.pack()
    master.protocol('WM_DELETE_WINDOW', lambda: rigdio.mainClose(master))
-   # if config file was generated, show config prompt window before letting Rigdio run
+   # if config file was generated, ask if user wants to open settings
    if settings.fileGen:
-      openConfig()
+      if openConfig():
+         rigdio.openSettings()
    try:
       mainloop()
    except RuntimeError as e:

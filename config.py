@@ -2,7 +2,6 @@ import yaml
 from logger import startLog
 from tkinter import *
 from tkinter import messagebox
-from os import startfile
 
 defaults = dict(
    config=dict(
@@ -67,10 +66,9 @@ def genConfig():
 
 # create prompt window asking if user wishes to view config file
 def openConfig():
-   confirm = messagebox.askyesnocancel("Config file created",
-   "First time run detected, config file with default settings set has been created. Do you wish to open it now?")
-   if (confirm):
-      startfile("config.yml")
+   confirm = messagebox.askyesno("Config file created",
+   "First time run detected, a config file with defaults has been created. Do you wish to open the Settings menu now?")
+   return confirm
 
 def applyDarkMode(root):
    root.tk_setPalette(

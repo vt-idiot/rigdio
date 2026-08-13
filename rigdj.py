@@ -12,6 +12,7 @@ import tkinter.messagebox as messagebox
 from config import settings, openConfig, applyDarkMode, applyLightMode, saveConfig
 from condition import *
 from conditioneditor import ConditionDialog
+import settingswindow
 
 from rigdj_util import *
 from uiutil import ToolTip, palette
@@ -836,6 +837,13 @@ class Editor (Frame):
       """Toggle dark mode on/off live and persist the setting to config.yml."""
       # flip the config value
       settings.configs["config"]["dark_mode_enabled"] = 0 if settings.config["dark_mode_enabled"] else 1
+      self._applyDarkMode()
+      # persist to config.yml
+      saveConfig()
+      print("Dark mode {}.".format("enabled" if settings.config["dark_mode_enabled"] else "disabled"))
+
+   def _applyDarkMode (self):
+      """Apply the current dark_mode_enabled config value to the UI."""
       dark = settings.config["dark_mode_enabled"]
       # apply the palette to the root window
       root = self.winfo_toplevel()
@@ -860,9 +868,17 @@ class Editor (Frame):
          self.teamEntry.configure(bg=self.colours["panel"])
       # update the button label
       self.darkModeBtn.configure(text="Dark Mode: On" if dark else "Dark Mode: Off")
-      # persist to config.yml
-      saveConfig()
-      print("Dark mode {}.".format("enabled" if dark else "disabled"))
+
+   def openSettings (self):
+      # keep a reference so the SettingsWindow (and its IntVars) aren't
+      # garbage-collected while the Toplevel is still open
+      self.settingsWin = settingswindow.SettingsWindow(self, restart=False,
+         onsave=self._onSettingsSaved)
+
+   def _onSettingsSaved (self, changed_keys):
+      # apply dark mode live if it was changed (config already has the new value)
+      if "dark_mode_enabled" in changed_keys:
+         self._applyDarkMode()
 
    def clear4ccm (self):
       self.filename = None
@@ -977,9 +993,10 @@ def main ():
    # construct editor object in window
    dj = Editor(mainWindow)
    dj.pack()
-   # if config file was generated, show config prompt window before letting RigDJ run
+   # if config file was generated, ask if user wants to open settings
    if settings.fileGen:
-      openConfig()
+      if openConfig():
+         dj.openSettings()
    try:
       mainloop()
    except RuntimeError as e:
