@@ -1,5 +1,6 @@
 import os
 import sys
+import subprocess
 from tkinter import *
 from config import settings, saveConfig
 from uiutil import ToolTip, palette
@@ -153,7 +154,15 @@ class SettingsWindow:
       self.win.destroy()
       root = self.parent.winfo_toplevel()
       root.destroy()
-      os.execv(sys.executable, [sys.executable] + sys.argv)
+      # Spawn a fresh process and exit. In a PyInstaller onedir bundle the
+      # executable runs from its own folder. We still strip _MEIPASS/TCL/TK
+      # env vars in case rigdio was launched from a onefile build.
+      env = dict(os.environ)
+      for k in list(env):
+         if k.startswith('_MEIPASS') or k in ('TCL_LIBRARY', 'TK_LIBRARY'):
+            env.pop(k, None)
+      subprocess.Popen([sys.executable] + sys.argv, env=env)
+      sys.exit(0)
 
    def cancel(self):
       # restore original values (in case any were modified in the live config)

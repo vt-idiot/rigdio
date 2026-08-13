@@ -1,1 +1,1 @@
-py -3.13 -m PyInstaller -F --noconsole --icon=rigdj.ico --add-data "rigdj.ico;." rigdj.py
+py -3.13 -m PyInstaller --noconsole --icon=rigdj.ico --add-data "rigdj.ico;." rigdj.py

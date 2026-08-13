@@ -51,24 +51,24 @@ This will:
 * You can pass `--jobs N` to control parallelism: `python build-ffmpeg.py --jobs 4`.
 
 ### Building Rigdio/RigDJ
-Once you've fully made and tested out your code changes, you can start building the executables. Simply run the batch file for whichever executable you wish to build (**compile-rigdio.bat** for Rigdio, **compile-rigdj.bat** for RigDJ) and wait for the process to finish. Assuming the build process went smoothly and without error, you will see a couple new files and folders. The built executable will be stored in the `dist` folder for you to test out yourself.<br>
-**TIP:** Replace the executable in the Rigdio release folder with your own built executable before testing it out to have a more accurate runtime environment.
+Once you've fully made and tested out your code changes, you can start building the executables. Simply run the batch file for whichever executable you wish to build (**compile-rigdio.bat** for Rigdio, **compile-rigdj.bat** for RigDJ) and wait for the process to finish. Assuming the build process went smoothly and without error, you will see a couple new files and folders. The built executable will be stored in the `dist` folder, alongside a `_internal` folder containing the bundled Python runtime and dependencies. Both the executable and its `_internal` folder are required to run the program.<br>
+**TIP:** Replace the executable and `_internal` folder in the Rigdio release folder with your own built ones before testing it out to have a more accurate runtime environment.
 
 If you're on Mac/Linux then you will need to run the command line manually; Fortunately it's short and only a single line.<br>
 The command line to build the Rigdio executable is
 ```
-pyinstaller -F --noconsole --icon=rigdio.ico --add-data "rigdio.ico;." rigdio.py
+pyinstaller --noconsole --icon=rigdio.ico --add-data "rigdio.ico;." rigdio.py
 ```
 
 And the command line to build the RigDJ executable is
 ```
-pyinstaller -F --noconsole --icon=rigdj.ico --add-data "rigdj.ico;." rigdj.py
+pyinstaller --noconsole --icon=rigdj.ico --add-data "rigdj.ico;." rigdj.py
 ```
 
 ### Assembling a Release
 To create a complete Rigdio release package, you will need the following files in a single folder:
-* `rigdio.exe` - Built from `compile-rigdio.bat`
-* `rigdj.exe` - Built from `compile-rigdj.bat`
+* `rigdio.exe` and its `_internal` folder - Built from `compile-rigdio.bat`
+* `rigdj.exe` and its `_internal` folder - Built from `compile-rigdj.bat`
 * `libmpv-2.dll` - The 64-bit mpv library DLL
 * `ffmpeg.exe` - Minimal ffmpeg build (included in the repo, or rebuild with `build-ffmpeg.bat`)
 * `config.yml` - Default configuration file
