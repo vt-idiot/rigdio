@@ -18,6 +18,7 @@ from rigdio_util import volumeColor, sliderToDb
 from event import EventController
 import chantswindow as cWin
 import legacy
+import settingswindow
 
 from logger import startLog
 if __name__ == '__main__':
@@ -104,6 +105,9 @@ class Rigdio (Frame):
       Label(self, text=None).grid(row=3, column=1)
       # undo (temporary)
       Button(self, text="Undo Last Goal", command=self.game.undoLast, bg=self.colours["reset"]).grid(row=4, column=1)
+      # blank gap then settings button
+      Label(self, text=None).grid(row=5, column=1)
+      Button(self, text="Settings", command=self.openSettings, bg=self.colours["normalize"]).grid(row=6, column=1)
 
    def initGameTypeMenu (self):
       gameTypeMenu = Frame(self)
@@ -513,6 +517,11 @@ class Rigdio (Frame):
             return
       else:
          messagebox.showerror("Error","File {} not found.".format(f))
+
+   def openSettings (self):
+      # keep a reference so the SettingsWindow (and its IntVars) aren't
+      # garbage-collected while the Toplevel is still open
+      self.settingsWin = settingswindow.SettingsWindow(self)
 
 def resource_path(relative_path):
    """ Get absolute path to resource, works for dev and for PyInstaller """

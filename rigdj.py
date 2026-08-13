@@ -14,6 +14,7 @@ from condition import *
 from conditioneditor import ConditionDialog
 
 from rigdj_util import *
+from uiutil import ToolTip
 from rigparse import parse, reserved
 
 from logger import startLog
@@ -784,7 +785,7 @@ class Editor (Frame):
       self.syncCheck = Checkbutton(flagsRow, text="Share goalhorn position (sync)",
          variable=self.syncVar)
       self.syncCheck.pack(side=LEFT)
-      syncInfo = Label(flagsRow, text="ⓘ", fg="black", cursor="question_arrow")
+      syncInfo = Label(flagsRow, text="ⓘ", fg="#ffffff" if settings.config["dark_mode_enabled"] else "black", cursor="question_arrow")
       syncInfo.pack(side=LEFT, padx=(2,33))
       ToolTip(syncInfo,
          "When enabled, goalhorn songs used by multiple players resume\n"
@@ -797,7 +798,7 @@ class Editor (Frame):
       self.normalizeCheck = Checkbutton(flagsRow, text="Allow volume normalization",
          variable=self.normalizeVar)
       self.normalizeCheck.pack(side=LEFT)
-      normInfo = Label(flagsRow, text="ⓘ", fg="black", cursor="question_arrow")
+      normInfo = Label(flagsRow, text="ⓘ", fg="#ffffff" if settings.config["dark_mode_enabled"] else "black", cursor="question_arrow")
       normInfo.pack(side=LEFT, padx=(2,0))
       ToolTip(normInfo,
          "When enabled, rigdio analyzes each track's loudness and applies\n"
