@@ -288,6 +288,47 @@ class ConditionPlayer (ConditionList):
       self._configureLooping()
       self.instruct()
 
+   def applyNormalizeFilter (self):
+      """Recompute and apply the normalization audio filter to the current mpv
+      player based on the current normalize flag. Called lazily by play() before
+      playback, and also safe to call on a currently playing song so that a
+      normalize toggle takes effect live instead of only on the next play().
+      No-op when normalization is disabled globally or the song isn't loaded."""
+      if not settings.config["normalize_volume"] or not isinstance(self.song, mpv.MPV):
+         return
+      if self.normalize:
+         fullpath = abspath(self.songname)
+         gain, needs_limiter = analyze_loudness(fullpath, settings.level["target"])
+         # re-check the flag after the (potentially blocking) analysis: the user
+         # may have toggled normalize back off while we waited, in which case
+         # applying the gain now would override the freshly applied 0 dB baseline
+         if not self.normalize:
+            return
+         if gain is not None:
+            if self.louder:
+               total_gain = gain + self.boostValue
+               self.song.af = "volume={:.1f}dB,alimiter=limit=0.95".format(total_gain)
+            elif needs_limiter:
+               self.song.af = "volume={:.1f}dB,alimiter=limit=0.95".format(gain)
+            else:
+               self.song.af = "volume={:.1f}dB".format(gain)
+            self.normalize_gain = gain
+         else:
+            # analysis failed: clear any previously applied filter so we don't
+            # keep playing at a stale gain (e.g. after toggling normalize off)
+            self.normalize_gain = None
+            self.song.af = ""
+      else:
+         # normalization opted out for this team: baseline 0 dB
+         # boost still applies on top of the baseline for louder-marked tracks
+         self.normalize_gain = 0
+         if self.louder and self.boostValue != 0:
+            self.song.af = "volume={:.1f}dB,alimiter=limit=0.95".format(float(self.boostValue))
+         else:
+            # clear any previously applied normalized filter so the track plays
+            # at its native 0 dB baseline
+            self.song.af = ""
+
    def play (self):
       if self.fade is not None:
          print("Song played quickly after pause, cancelling fade.")
@@ -295,25 +336,7 @@ class ConditionPlayer (ConditionList):
          self.fade = None
          thread.join()
       # apply normalization gain as audio filter before playback (lazy — only when actually played)
-      if settings.config["normalize_volume"] and isinstance(self.song, mpv.MPV):
-         if self.normalize:
-            fullpath = abspath(self.songname)
-            gain, needs_limiter = analyze_loudness(fullpath, settings.level["target"])
-            if gain is not None:
-               if self.louder:
-                  total_gain = gain + self.boostValue
-                  self.song.af = "volume={:.1f}dB,alimiter=limit=0.95".format(total_gain)
-               elif needs_limiter:
-                  self.song.af = "volume={:.1f}dB,alimiter=limit=0.95".format(gain)
-               else:
-                  self.song.af = "volume={:.1f}dB".format(gain)
-               self.normalize_gain = gain
-         else:
-            # normalization opted out for this team: baseline 0 dB
-            # boost still applies on top of the baseline for louder-marked tracks
-            self.normalize_gain = 0
-            if self.louder and self.boostValue != 0:
-               self.song.af = "volume={:.1f}dB,alimiter=limit=0.95".format(float(self.boostValue))
+      self.applyNormalizeFilter()
       self.song.pause = False
       self.song.volume = self._toMpvVolume(self.maxVolume)
       # restore saved playback position for sync-enabled goalhorns

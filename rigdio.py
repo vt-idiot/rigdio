@@ -493,6 +493,29 @@ class Rigdio (Frame):
       else:
          btn.configure(text="Normalize: No", font="TkDefaultFont 9 bold")
 
+   # re-apply the normalization audio filter to any song from the given side
+   # that is currently playing, so a normalize toggle takes effect live on the
+   # currently playing track instead of only on the next play()
+   def _applyNormalizeToPlaying (self, home):
+      team = self.home if home else self.away
+      if team is None:
+         return
+      playing = []
+      # team goalhorns / anthem / victory anthem
+      for button in team.buttons:
+         cp = button.clists.song
+         if cp is not None and hasattr(cp.song, 'pause'):
+            if not cp.song.pause and not cp.song.eof_reached:
+               playing.append(cp)
+      # the active chant, if it belongs to the toggled side
+      if self.chantsManager is not None:
+         chant = self.chantsManager.activeChant
+         if chant is not None and getattr(chant, 'home', None) == home and hasattr(chant.song, 'pause'):
+            if not chant.song.pause and not chant.song.eof_reached:
+               playing.append(chant)
+      for cp in playing:
+         cp.applyNormalizeFilter()
+
    # toggle normalization for a loaded team on click of the Normalize button
    def toggleNormalize (self, home):
       team = self.home if home else self.away
@@ -511,6 +534,10 @@ class Rigdio (Frame):
          self._updateNormalizeButton(home)
          filepaths = team.allSongPaths(chants)
          legacy.start_background_analysis(filepaths, settings.level["target"])
+         # re-apply the new normalized baseline to any currently playing track;
+         # run in a background thread because analyze_loudness may block while
+         # the background analysis pool catches up on the currently playing file
+         threading.Thread(target=self._applyNormalizeToPlaying, args=(home,), daemon=True).start()
       else:
          # Yes -> No: check if any _normalized files exist in the folder that
          # we haven't already loaded; if so, reload the team so songCheck picks
@@ -528,6 +555,8 @@ class Rigdio (Frame):
                if hasattr(chant, 'normalize'):
                   chant.normalize = newval
             self._updateNormalizeButton(home)
+            # re-apply the 0 dB baseline to any currently playing track live
+            self._applyNormalizeToPlaying(home)
 
    # check whether the folder contains _normalized versions of the team's songs
    # that are not already the files currently loaded
