@@ -6,8 +6,11 @@ from config import settings
 # reserved names
 reserved = set(['anthem', 'victory', 'goal', 'name', 'chant', ';event', 'sync', 'normalize'])
 
-def parse (filename, load = True, home = True, progress_callback=None):
-   """Parses a music export file and loads it into memory."""
+def parse (filename, load = True, home = True, progress_callback=None, normalize_override=None):
+   """Parses a music export file and loads it into memory.
+   normalize_override: if not None, forces the per-team normalize flag to this
+   value, ignoring what the .4ccm file specifies. Used when the streamer toggles
+   normalization after load: the team is reloaded as if the flag had been set."""
    # get location of folder
    folder = '/'.join(filename.split('/')[0:-1])+'/'
    # regular player clist collections
@@ -55,6 +58,13 @@ def parse (filename, load = True, home = True, progress_callback=None):
          normalize = enabled
          print("Normalize flag: {}".format("enabled" if normalize else "disabled"))
       lines = lines[1:]
+
+   # streamer-side override: force the normalize flag regardless of what the
+   # .4ccm file says (used when toggling normalization after load)
+   if normalize_override is not None:
+      if normalize != normalize_override:
+         print("Normalize flag overridden to {}.".format("enabled" if normalize_override else "disabled"))
+      normalize = normalize_override
 
    # iterate across lines
    # pre-pass: collect song count for progress UI

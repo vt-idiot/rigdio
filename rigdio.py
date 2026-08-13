@@ -63,6 +63,10 @@ class Rigdio (Frame):
       self.game = GameState(instance=self)
       self.home = None
       self.away = None
+      # store the .4ccm file path for each slot so the team can be reloaded
+      # (e.g. when the streamer toggles normalization after load)
+      self.homeFile = None
+      self.awayFile = None
       self.masterVolumeValue = 100
       # UI colour palette
       self.colours = settings.darkColours if settings.config["dark_mode_enabled"] else settings.lightColours
@@ -258,14 +262,20 @@ class Rigdio (Frame):
       legacy.titleCheck = False
       master.destroy()
 
-   def legacyLoad (self, f, home):
+   def legacyLoad (self, f, home, normalize_override=None):
       print("Loading music instructions from {}.".format(f))
+      # store the file path so the team can be reloaded later (e.g. normalize toggle)
+      if normalize_override is None:
+         if home:
+            self.homeFile = f
+         else:
+            self.awayFile = f
       # create a loading progress window
       loadWin = Toplevel(self)
-      loadWin.title("Loading")
+      loadWin.title("Reloading" if normalize_override is not None else "Loading")
       loadWin.resizable(False, False)
       loadWin.transient(self)
-      loadLabel = Label(loadWin, text="Loading team export...", padx=20, pady=10)
+      loadLabel = Label(loadWin, text="Reloading team export..." if normalize_override is not None else "Loading team export...", padx=20, pady=10)
       loadLabel.pack()
       barWidth = 300
       barHeight = 20
@@ -292,7 +302,7 @@ class Rigdio (Frame):
 
       def worker():
          try:
-            result = parseLegacy(f, home=home, progress_callback=progress_callback)
+            result = parseLegacy(f, home=home, progress_callback=progress_callback, normalize_override=normalize_override)
             state["result"] = result
          except Exception as e:
             state["error"] = e
@@ -489,19 +499,60 @@ class Rigdio (Frame):
       if team is None:
          return
       newval = not team.normalize
-      team.setNormalize(newval)
-      # also propagate to that team's chants
-      chants = self.chantsManager.homeChants if home else self.chantsManager.awayChants
-      for chant in chants:
-         if hasattr(chant, 'normalize'):
-            chant.normalize = newval
-      self._updateNormalizeButton(home)
-      # when (re-)enabling normalization, compute loudness in the background
-      # as if the 4ccm had just been loaded
       if newval:
-         filepaths = team.allSongPaths()
-         filepaths.extend(c.songname for c in chants if hasattr(c, 'songname'))
+         # No -> Yes: just flip the flag and compute loudness in the background.
+         # The loaded files (possibly _normalized) can be re-analyzed at runtime,
+         # so there's no need to reload the whole team.
+         team.setNormalize(newval)
+         chants = self.chantsManager.homeChants if home else self.chantsManager.awayChants
+         for chant in chants:
+            if hasattr(chant, 'normalize'):
+               chant.normalize = newval
+         self._updateNormalizeButton(home)
+         filepaths = team.allSongPaths(chants)
          legacy.start_background_analysis(filepaths, settings.level["target"])
+      else:
+         # Yes -> No: check if any _normalized files exist in the folder that
+         # we haven't already loaded; if so, reload the team so songCheck picks
+         # them up. If none exist, the loaded files are already correct and we
+         # just flip the flag (they'll play at 0 dB baseline as intended).
+         chants = self.chantsManager.homeChants if home else self.chantsManager.awayChants
+         if self._hasNormalizedToSwap(team, chants):
+            filepath = self.homeFile if home else self.awayFile
+            if filepath is None:
+               return
+            self.legacyLoad(filepath, home, normalize_override=newval)
+         else:
+            team.setNormalize(newval)
+            for chant in chants:
+               if hasattr(chant, 'normalize'):
+                  chant.normalize = newval
+            self._updateNormalizeButton(home)
+
+   # check whether the folder contains _normalized versions of the team's songs
+   # that are not already the files currently loaded
+   def _hasNormalizedToSwap (self, team, chants):
+      from os.path import dirname, splitext, abspath
+      from os import listdir
+      # collect all loaded song paths for the team
+      loaded = set()
+      folders = set()
+      for path in team.allSongPaths(chants):
+         full = abspath(path).lower()
+         loaded.add(full)
+         folders.add(dirname(full))
+      # check each folder for _normalized files not already loaded
+      for folder in folders:
+         try:
+            files = listdir(folder)
+         except OSError:
+            continue
+         for file in files:
+            stem, _ = splitext(file)
+            if stem.lower().endswith("_normalized"):
+               if abspath(folder + "/" + file).lower() not in loaded:
+                  return True
+      return False
 
    def loadFile (self, home = True):
       f = filedialog.askopenfilename(filetypes = (("Rigdio export files", "*.4ccm"),("All files","*.*")))

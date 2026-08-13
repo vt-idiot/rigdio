@@ -9,8 +9,6 @@
   Lets the streamer force normalization on for a team that opted out, or turn it
   off for a team that allowed it, after load
   "Normalize: No" is shown in bold to make opted-out teams noticeable
-  When normalization is enabled for a team, its loudness levels are computed
-  in the background as if the 4ccm had just been loaded
 - RigDJ now reads, displays, and preserves the "sync" and "normalize" team flags
   Both default to checked (enabled); unchecking writes "sync;no" / "normalize;no"
   to the .4ccm file

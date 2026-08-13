@@ -405,12 +405,15 @@ class TeamMenuLegacy (Frame):
                clist.normalize = value
 
    # return the file paths of every song loaded for this team (for background analysis)
-   def allSongPaths (self):
+   # chants is an optional list of chant ConditionPlayers to include
+   def allSongPaths (self, chants=None):
       paths = []
       for playerList in self.players.values():
          for clist in playerList:
             if hasattr(clist, 'songname'):
                paths.append(clist.songname)
+      if chants:
+         paths.extend(c.songname for c in chants if hasattr(c, 'songname'))
       return paths
 
    def goNuclear(self):
