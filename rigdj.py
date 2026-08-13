@@ -14,7 +14,7 @@ from condition import *
 from conditioneditor import ConditionDialog
 
 from rigdj_util import *
-from uiutil import ToolTip
+from uiutil import ToolTip, palette
 from rigparse import parse, reserved
 
 from logger import startLog
@@ -144,7 +144,7 @@ class SongRow:
       self.sv = StringVar()
       self.sv.trace_add("write", self.updateName)
       # the entry object itself
-      self.songNameEntry = Entry(self.master, width=50, textvariable=self.sv)
+      self.songNameEntry = Entry(self.master, width=50, textvariable=self.sv, bg=palette()["panel"])
       output.append(self.songNameEntry)
       # extra spacing, if you haven't figured out the pattern yet
       output.append(Label(self.master,text=" "))
@@ -266,8 +266,8 @@ class SongEditor (Frame):
       """
          Constructor.
       """
-      # frame init
-      super().__init__(canvas)
+      # frame init — match the main background, not the panel
+      super().__init__(canvas, bg=palette()["bg"])
       # songrows is empty to start
       self.songrows = []
       self.newSongButton = Button(self,text="Add Song",command=self.addSong)
@@ -511,7 +511,7 @@ class PlayerSelectFrame (Frame):
    def __init__ (self, editor, command = None, players = []):
       super().__init__(editor)
 
-      self.newPlayerEntry = Entry(self, width=30)
+      self.newPlayerEntry = Entry(self, width=30, bg=palette()["panel"])
       self.newPlayerEntry.grid(row=0,column=1, sticky=N+W,padx=5,pady=10)
       # songs for each player
       self.songs = {
@@ -521,7 +521,8 @@ class PlayerSelectFrame (Frame):
          "chant" : []
       }
       # create list selector with default options
-      self.playerMenu = ScrollingListbox(self,exportselection=False)
+      # use white background in light mode for the editable panel areas
+      self.playerMenu = ScrollingListbox(self,exportselection=False, bg=palette()["panel"])
       self.playerMenu.insert(END,"Anthem")
       self.playerMenu.insert(END,"Victory Anthem")
       self.playerMenu.insert(END,"Goalhorn")
@@ -543,7 +544,7 @@ class PlayerSelectFrame (Frame):
       buttonFrame.grid(row=0,column=0,padx=5,pady=5)
 
       # create song editor
-      self.canvas = Canvas(self)
+      self.canvas = Canvas(self, bg=palette()["bg"], highlightthickness=0)
       scrollbar = Scrollbar(self, orient="vertical", command=self.canvas.yview)
       self.canvas.configure(height=300, yscrollcommand=scrollbar.set)
 
@@ -733,8 +734,7 @@ class Preview4CCM (Frame):
       self.editor = editor
       self.buffer = StringIO()
       # use the main background colour to signal the preview is read-only
-      bg = settings.darkColours["bg"] if settings.config["dark_mode_enabled"] else "#f0f0f0"
-      self.text = Text(self, state=DISABLED, width=60, bg=bg)
+      self.text = Text(self, state=DISABLED, width=60, bg=palette()["bg"])
       self.text.pack(fill=Y,expand=1)
 
    def update (self):
@@ -749,6 +749,8 @@ class Editor (Frame):
    def __init__ (self, master):
       # tkinter master window
       super().__init__(master)
+      # colour palette (updated by toggleDarkMode)
+      self.colours = settings.darkColours if settings.config["dark_mode_enabled"] else settings.lightColours
       # top bar: file menu on the left, dark mode toggle on the right
       topBar = Frame(self)
       fileMenu = self.buildFileMenu(topBar)
@@ -772,7 +774,7 @@ class Editor (Frame):
       self.sv = StringVar()
       self.sv.trace_add("write", self.updateEditor)
       # create the actual entry object
-      self.teamEntry = Entry(temp, width=20, textvariable=self.sv)
+      self.teamEntry = Entry(temp, width=20, textvariable=self.sv, bg=palette()["panel"])
       self.teamEntry.pack(side=LEFT)
 
       # team flags section (sync and normalize opt-outs)
@@ -785,7 +787,7 @@ class Editor (Frame):
       self.syncCheck = Checkbutton(flagsRow, text="Share goalhorn position (sync)",
          variable=self.syncVar)
       self.syncCheck.pack(side=LEFT)
-      syncInfo = Label(flagsRow, text="ⓘ", fg="#ffffff" if settings.config["dark_mode_enabled"] else "black", cursor="question_arrow")
+      syncInfo = Label(flagsRow, text="ⓘ", fg=palette()["fg"], cursor="question_arrow")
       syncInfo.pack(side=LEFT, padx=(2,33))
       ToolTip(syncInfo,
          "When enabled, goalhorn songs used by multiple players resume\n"
@@ -798,7 +800,7 @@ class Editor (Frame):
       self.normalizeCheck = Checkbutton(flagsRow, text="Allow volume normalization",
          variable=self.normalizeVar)
       self.normalizeCheck.pack(side=LEFT)
-      normInfo = Label(flagsRow, text="ⓘ", fg="#ffffff" if settings.config["dark_mode_enabled"] else "black", cursor="question_arrow")
+      normInfo = Label(flagsRow, text="ⓘ", fg=palette()["fg"], cursor="question_arrow")
       normInfo.pack(side=LEFT, padx=(2,0))
       ToolTip(normInfo,
          "When enabled, rigdio analyzes each track's loudness and applies\n"
@@ -841,10 +843,21 @@ class Editor (Frame):
          applyDarkMode(root)
       else:
          applyLightMode(root)
-      # update the preview text background to match
+      # update widget backgrounds that use explicit colours
+      self.colours = palette()
       if self.previewer is not None:
-         bg = settings.darkColours["bg"] if dark else "#f0f0f0"
-         self.previewer.text.configure(bg=bg)
+         self.previewer.text.configure(bg=self.colours["bg"])
+      if hasattr(self, 'playerMenu'):
+         self.playerMenu.playerMenu.configure(bg=self.colours["panel"])
+         self.playerMenu.canvas.configure(bg=self.colours["bg"])
+         self.playerMenu.songEditor.configure(bg=self.colours["bg"])
+         self.playerMenu.newPlayerEntry.configure(bg=self.colours["panel"])
+         # update song name entries in existing rows
+         for row in self.playerMenu.songEditor.songrows:
+            if hasattr(row, 'songNameEntry'):
+               row.songNameEntry.configure(bg=self.colours["panel"])
+      if hasattr(self, 'teamEntry'):
+         self.teamEntry.configure(bg=self.colours["panel"])
       # update the button label
       self.darkModeBtn.configure(text="Dark Mode: On" if dark else "Dark Mode: Off")
       # persist to config.yml
@@ -957,6 +970,8 @@ def main ():
    # change window palette to dark mode if enabled in config
    if settings.config["dark_mode_enabled"]:
       applyDarkMode(mainWindow)
+   else:
+      applyLightMode(mainWindow)
 
    mainWindow.title("rigDJ {}".format(version))
    # construct editor object in window

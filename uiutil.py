@@ -1,4 +1,9 @@
 from tkinter import *
+from config import settings
+
+def palette():
+   """Return the current colour palette (dark or light) based on config."""
+   return settings.darkColours if settings.config["dark_mode_enabled"] else settings.lightColours
 
 class ToolTip:
    """

@@ -6,7 +6,7 @@ from tkinter import *
 import tkinter.filedialog as filedialog
 import tkinter.messagebox as messagebox
 
-from config import genConfig, openConfig, applyDarkMode, settings
+from config import genConfig, openConfig, applyDarkMode, applyLightMode, settings
 
 from condition import MatchCondition
 from rigparse import parse as parseLegacy
@@ -594,6 +594,8 @@ def main ():
    # change window palette to dark mode if enabled in config
    if settings.config["dark_mode_enabled"]:
       applyDarkMode(master)
+   else:
+      applyLightMode(master)
    master.title("rigdio {}".format(version))
    rigdio = Rigdio(master)
    rigdio.pack()

@@ -2,7 +2,7 @@ import os
 import sys
 from tkinter import *
 from config import settings, saveConfig
-from uiutil import ToolTip
+from uiutil import ToolTip, palette
 
 # Settings metadata: grouped by section, each entry is:
 #   (key, label, type, default, tooltip)
@@ -65,7 +65,7 @@ class SettingsWindow:
       self.win.grab_set()
       self.win.resizable(False, False)
       # colours
-      self.colours = settings.darkColours if settings.config["dark_mode_enabled"] else settings.lightColours
+      self.colours = palette()
       # store the current config values so Cancel can discard changes
       self.original = dict(settings.configs["config"])
       # store the widgets for each setting
@@ -75,7 +75,6 @@ class SettingsWindow:
 
    def _buildUI(self):
       dark = settings.config["dark_mode_enabled"]
-      icon_fg = "#ffffff" if dark else "black"
       row = 0
       for section_name, items in SETTINGS_META:
          # section header
@@ -86,7 +85,7 @@ class SettingsWindow:
          for key, label, typ, default, tooltip in items:
             current = settings.configs["config"].get(key, default)
             # info icon (left of label) with tooltip
-            info = Label(self.win, text="ⓘ", fg=icon_fg, cursor="question_arrow")
+            info = Label(self.win, text="ⓘ", fg=self.colours["fg"], cursor="question_arrow")
             info.grid(row=row, column=0, sticky=W, padx=(15,2), pady=2)
             ToolTip(info, tooltip)
             # label
