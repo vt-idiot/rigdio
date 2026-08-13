@@ -93,6 +93,9 @@ class PlayerButtons:
          # score points if it's a goalhorn
          if self.pname not in reserved or self.pname == "goal":
             self.game.score(self.pname, self.clists.home)
+            # snapshot pre-play state so Undo can restore it
+            self.game.lastSnapshot = self.clists.snapshot()
+            self.game.lastPlayerManager = self.clists
          # pass it up to the list manager
          try:
             # if this is the first time this song is being played and it has a custom playback speed set, set the slider to that speed

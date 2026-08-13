@@ -30,6 +30,8 @@ class GameState:
       self.time = None
       # used for undo semantics
       self.lastPname = None
+      self.lastSnapshot = None
+      self.lastPlayerManager = None
       # mutexes used for thread safety
       # to avoid hardlocking, if multiple mutexes must be nested, it is assumed the function will unlock them in the order listed here
       self.mutex = {
@@ -52,6 +54,11 @@ class GameState:
             with self.mutex["away"]:
                self.away_score -= 1
                self.away_scorers[self.lastPname] -= 1
+         # restore pre-play state (playback position, warcry flag, firstPlay)
+         if self.lastSnapshot is not None and self.lastPlayerManager is not None:
+            self.lastPlayerManager.restore(self.lastSnapshot)
+            self.lastSnapshot = None
+            self.lastPlayerManager = None
          self.lastPname = None
          self.widget.updateScore()
 

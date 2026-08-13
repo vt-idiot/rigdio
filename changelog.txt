@@ -1,4 +1,8 @@
 13/08/26
+- Undo Last Goal now also restores the goalhorn's pre-play state
+  Previously Undo only reverted the score, the wrongly-clicked goalhorn would keep its
+  playback position and warcry state. Undo now restores the cached playback position,
+  warcry flag, and firstPlay state to what they were before the goal was scored
 - Loading a 4ccm now fully resets the team previously in that slot (stops music,
   clears cached positions, resets event timers) before replacing it
 - Fixed the Reset button only clearing the most recently played song's cached position

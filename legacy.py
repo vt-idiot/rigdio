@@ -596,6 +596,33 @@ class PlayerManager:
       self.lastSong = None
       self.warcry = True
 
+   # capture pre-play state so undo can restore it (playback position + warcry flag)
+   def snapshot (self):
+      return {
+         'warcry': self.warcry,
+         'songs': [
+            (c, _position_cache.get(abspath(c.songname)), getattr(c, 'firstPlay', None))
+            for c in self.clists
+         ],
+      }
+
+   # restore pre-play state captured by snapshot()
+   def restore (self, snapshot):
+      self.warcry = snapshot['warcry']
+      for c, pos, firstPlay in snapshot['songs']:
+         fullpath = abspath(c.songname)
+         if pos is None:
+            _position_cache.pop(fullpath, None)
+            # no cache entry to restore from on next play, so reset the mpv
+            # player's position directly (otherwise it resumes from where it
+            # was paused, since play() only sets time_pos from the cache)
+            if hasattr(c, 'song') and isinstance(c.song, mpv.MPV):
+               c.song.time_pos = 0
+         else:
+            _position_cache[fullpath] = pos
+         if hasattr(c, 'firstPlay') and firstPlay is not None:
+            c.firstPlay = firstPlay
+
    # writes currently playing song's details to title.log, clearing it after a set amount of time
    def writeTitleLog (self):
       print("Write title timer thread started.")
