@@ -71,7 +71,7 @@ def parse (filename, load = True, home = True, progress_callback=None):
             fancyname = filenames[player] if player in reserved else player
             default = default.format(tname, fancyname)
             data.append(default)
-         pre_files.append(songCheck(folder, data[1]))
+         pre_files.append(songCheck(folder, data[1], normalize))
       song_count = len(pre_files)
       if progress_callback:
          progress_callback(-2, song_count)
@@ -96,7 +96,7 @@ def parse (filename, load = True, home = True, progress_callback=None):
       filename = folder+data[1] # location of song, relative to location of export file
       # if we're loading the songs, create ConditionPlayer objects
       if load:
-         filename = songCheck(folder, data[1]) # check for song file, including normalised
+         filename = songCheck(folder, data[1], normalize) # check for song file, including normalised
          songtype = player if player in ("anthem", "victory", "chant") else "goalhorn"
          clist = ConditionPlayer(
             pname=data[0],
@@ -152,10 +152,11 @@ def parse (filename, load = True, home = True, progress_callback=None):
    print("Loaded songs for team /{}/".format(tname))
    return players, tname, events, sync, normalize
 
-def songCheck (folder, name):
+def songCheck (folder, name, normalize=True):
    normalized = splitext(name)[0] + "_normalized"
-   if not settings.config["normalize_volume"]:
-      # when normalize_volume is disabled, prefer _normalized files if they exist
+   # prefer _normalized files when normalization won't be applied to this team,
+   # i.e. when global normalize_volume is off OR the team opted out via normalize;no
+   if not settings.config["normalize_volume"] or not normalize:
       for file in listdir(folder):
          if splitext(file)[0].lower() == normalized.lower():
             print("Normalized version of " + folder+name + " found")
@@ -169,7 +170,7 @@ def songCheck (folder, name):
    else:
       return folder+name
    # no regular file found; fall back to _normalized version if it exists
-   # (will be renormalized at playback to the configured target level)
+   # (will be renormalized at playback if normalization is enabled for this team)
    for file in listdir(folder):
       if splitext(file)[0].lower() == normalized.lower():
          print("Regular file not found, using normalized version of " + folder+name)
