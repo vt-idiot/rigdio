@@ -46,11 +46,12 @@ SETTINGS_META = [
        "Allows rigdio to write diagnostic messages to rigdio.log.\n"
        "Disable this if your system doesn't allow file writing and rigdio\n"
        "crashes on startup."),
-      ("write_song_title_log", "Write song title to title.log", "scale_int", 0,
+      ("write_song_title_log", "Write song title to title.log", "int_entry", 0,
        "Writes the currently playing song's title/filename to title.log,\n"
        "useful for OBS overlays. Set to 0 to disable. Set to a number of\n"
        "seconds (e.g. 30) to keep the title visible for that duration after\n"
-       "the song starts, before clearing it."),
+       "the song starts, before clearing it. Set to -1 to keep the title\n"
+       "visible for as long as the song is playing."),
    ]),
 ]
 
@@ -122,10 +123,17 @@ class SettingsWindow:
                self.vars[key] = var
             elif typ == "scale_int":
                var = IntVar(value=current)
-               sc = Scale(self.win, from_=0, to=300, resolution=1,
+               sc = Scale(self.win, from_=0, to=60, resolution=1,
                   orient=HORIZONTAL, variable=var, showvalue=1, length=120)
                sc.grid(row=row, column=2, sticky=W, padx=(0,12), pady=2)
                self.widgets[key] = sc
+               self.vars[key] = var
+            elif typ == "int_entry":
+               var = IntVar(value=current)
+               entry = Entry(self.win, textvariable=var, width=6,
+                  justify=RIGHT, bg=self.colours["panel"])
+               entry.grid(row=row, column=2, sticky=W, padx=(0,12), pady=2)
+               self.widgets[key] = entry
                self.vars[key] = var
             row += 1
       # apply initial dependent state (grey out slider setting if normalize is on)

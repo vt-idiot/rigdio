@@ -536,7 +536,7 @@ class PlayerManager:
          self.master.timer.retrieveSongInfo()
 
       # check if user has enabled write to title.log function
-      if not self.song.warcry and settings.config["write_song_title_log"] > 0:
+      if not self.song.warcry and settings.config["write_song_title_log"] != 0:
          global titleThread
          global titleCheck
          # if title timer thread already exists,
@@ -675,11 +675,15 @@ class PlayerManager:
             file.write(text)
 
       timerStart = time.time()
+      timeout = settings.config["write_song_title_log"]
       while titleThread is not None:
          # exit loop if thread has been interrupted, song has ended, or timer has run out
-         if (not titleCheck or self.song is None or
-               self.song.song.eof_reached or
-               (time.time() - timerStart) > settings.config["write_song_title_log"]):
+         # (-1 means keep the title visible for as long as the song is playing)
+         if (
+            not titleCheck or self.song is None or
+            self.song.song.eof_reached or
+            (timeout > 0 and (time.time() - timerStart) > timeout)
+         ):
             break
          time.sleep(0.01)
 

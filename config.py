@@ -12,7 +12,7 @@ defaults = dict(
       dark_mode_enabled=0, # enable dark mode
       show_goalhorn_volume_default=1, # show goalhorn volume sliders by default
       normalize_volume=1, # normalize all music to a consistent loudness level (uses target from level config); replaces individual volume sliders with a single master volume slider
-      write_song_title_log=0, # write a title.log file that contains the current song's title/filename before clearing it, values above 0 sets the timer
+      write_song_title_log=0, # write a title.log file that contains the current song's title/filename before clearing it, values above 0 set the timer in seconds, -1 keeps it for the whole song
       write_to_log=1 # allow rigdio/rigdj to write log files (some systems don't allow rigdio/rigdj to write to log, causing it to crash)
    ),
    fade=dict(

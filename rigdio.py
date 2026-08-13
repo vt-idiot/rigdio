@@ -26,7 +26,7 @@ if __name__ == '__main__':
    if settings.config["write_to_log"]:
       startLog("rigdio.log")
    # create a title.log file that will contain the current song's title/filename
-   if settings.config["write_song_title_log"] > 0:
+   if settings.config["write_song_title_log"] != 0:
       open("title.log", 'w').close()
    print("rigdio {}".format(version))
 
