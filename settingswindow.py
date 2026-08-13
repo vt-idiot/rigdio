@@ -108,7 +108,7 @@ class SettingsWindow:
                # checkmark invisible on the white indicator; force black
                cb = Checkbutton(self.win, variable=var,
                   fg="black" if dark else None)
-               cb.grid(row=row, column=2, sticky=W, padx=(0,12), pady=2)
+               cb.grid(row=row, column=2, sticky=W, padx=(3,12), pady=2)
                self.widgets[key] = cb
                self.vars[key] = var
                # wire up normalize_volume to toggle show_goalhorn_volume_default
@@ -116,15 +116,15 @@ class SettingsWindow:
                   var.trace_add("write", self._updateSliderDependentState)
             elif typ == "int_entry":
                var = IntVar(value=current)
-               entry = Entry(self.win, textvariable=var, width=6,
-                  justify=RIGHT, bg=self.colours["panel"])
+               entry = Entry(self.win, textvariable=var, width=4,
+                  justify=CENTER, bg=self.colours["panel"])
                entry.grid(row=row, column=2, sticky=W, padx=(0,12), pady=2)
                self.widgets[key] = entry
                self.vars[key] = var
             elif typ == "float_entry":
                var = DoubleVar(value=current)
-               entry = Entry(self.win, textvariable=var, width=6,
-                  justify=RIGHT, bg=self.colours["panel"])
+               entry = Entry(self.win, textvariable=var, width=4,
+                  justify=CENTER, bg=self.colours["panel"])
                entry.grid(row=row, column=2, sticky=W, padx=(0,12), pady=2)
                self.widgets[key] = entry
                self.vars[key] = var
