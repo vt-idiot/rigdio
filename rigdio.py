@@ -346,7 +346,7 @@ class Rigdio (Frame):
       self.events.reset(home)
 
    def _finishLegacyLoad (self, f, home, result):
-      tmusic, tname, events, normalize = result
+      tmusic, tname, events, _sync, normalize = result
       # retrieve list of song files that could not be found
       # (song as a string instead of MediaPlayer indicates file is missing)
       missing = [

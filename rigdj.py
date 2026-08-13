@@ -752,6 +752,9 @@ class Editor (Frame):
       self.previewer = None
       # file name of the .4ccm
       self.filename = None
+      # team flags (sync and normalize both default to yes/enabled)
+      self.syncVar = IntVar(value=1)
+      self.normalizeVar = IntVar(value=1)
       # team name editor and previewer
       leftFrame = Frame(self, pady=5)
       temp = Frame(leftFrame)
@@ -763,11 +766,45 @@ class Editor (Frame):
       self.teamEntry = Entry(temp, width=20, textvariable=self.sv)
       self.teamEntry.pack(side=LEFT)
 
+      # team flags section (sync and normalize opt-outs)
+      # both flags default to enabled (checked); unchecking writes ";no" to the .4ccm
+      flagsFrame = Frame(leftFrame)
+      flagsRow = Frame(flagsFrame)
+      flagsRow.pack(anchor="w")
+      # sync flag checkbox + info icon with tooltip
+      self.syncVar.trace_add("write", self.updateEditor)
+      self.syncCheck = Checkbutton(flagsRow, text="Share goalhorn position (sync)",
+         variable=self.syncVar)
+      self.syncCheck.pack(side=LEFT)
+      syncInfo = Label(flagsRow, text="ⓘ", fg="black", cursor="question_arrow")
+      syncInfo.pack(side=LEFT, padx=(2,33))
+      ToolTip(syncInfo,
+         "When enabled, goalhorn songs used by multiple players resume\n"
+         "from where they left off when switching between players.\n"
+         "Uncheck if you want every player to have their own unique copy\n"
+         "of those songs, so they'll always play from the start."
+      )
+      # normalize flag checkbox + info icon with tooltip
+      self.normalizeVar.trace_add("write", self.updateEditor)
+      self.normalizeCheck = Checkbutton(flagsRow, text="Allow volume normalization",
+         variable=self.normalizeVar)
+      self.normalizeCheck.pack(side=LEFT)
+      normInfo = Label(flagsRow, text="ⓘ", fg="black", cursor="question_arrow")
+      normInfo.pack(side=LEFT, padx=(2,0))
+      ToolTip(normInfo,
+         "When enabled, rigdio analyzes each track's loudness and applies\n"
+         "gain so all songs play at a consistent volume level.\n"
+         "Uncheck if your export is already pre-normalized and you want\n"
+         "rigdio to use the files as-is (the streamer can still force it\n"
+         "back on after load, if the files are too loud or quiet)."
+      )
+
       # player menu
       self.playerMenu = PlayerSelectFrame(self)
       # previewer
       self.previewer = Preview4CCM(leftFrame,self)
       temp.pack(anchor="w")
+      flagsFrame.pack(anchor="w", pady=(5,5))
       self.previewer.pack()
       # pack playermenu after leftFrame
       leftFrame.pack(anchor="nw",side=LEFT)
@@ -787,6 +824,9 @@ class Editor (Frame):
    def clear4ccm (self):
       self.filename = None
       self.teamEntry.delete(0,END)
+      # reset team flags to defaults (both enabled)
+      self.syncVar.set(1)
+      self.normalizeVar.set(1)
       self.playerMenu.updateList([])
       self.playerMenu.updateSongs({})
 
@@ -796,12 +836,15 @@ class Editor (Frame):
 
    def load4ccm (self):
       self.filename = filedialog.askopenfilename(filetypes = (("Rigdio export files", "*.4ccm"),("All files","*")))
-      songs, teamName, events, _normalize = parse(self.filename,False)
+      songs, teamName, events, sync, normalize = parse(self.filename,False)
       uiConvert(songs)
 
       self.teamEntry.delete(0,END)
       self.teamEntry.insert(0,teamName)
       self.teamEntry.xview_moveto(1)
+      # set team flag checkboxes from the parsed .4ccm flags
+      self.syncVar.set(1 if sync else 0)
+      self.normalizeVar.set(1 if normalize else 0)
       normalPlayers = [x for x in songs if x not in specialNames]
       self.playerMenu.updateList(normalPlayers)
       self.playerMenu.updateSongs(songs)
@@ -828,6 +871,11 @@ class Editor (Frame):
       outConvert(players)
       print("# team identifier", file=outfile)
       print("name;{}".format(self.teamEntry.get()), file=outfile)
+      # write team-level flags (only when opting out, since yes is the default)
+      if self.syncVar.get() == 0:
+         print("sync;no", file=outfile)
+      if self.normalizeVar.get() == 0:
+         print("normalize;no", file=outfile)
       print("",file=outfile)
       print("# reserved names", file=outfile)
       # count number of special VAs and see if it matches VA list length (all VAs are special)

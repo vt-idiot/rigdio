@@ -1,4 +1,4 @@
-13/08/26
+13/08/26 - Version v2.2.0 & RigDJ v1.16.0
 - Added "normalize;no" modifier in .4ccm files
   Managers with a curated, pre-normalized music export can opt out of loudness
   normalization by writing "normalize;no" below the team name (like "sync;no")
@@ -11,10 +11,12 @@
   "Normalize: No" is shown in bold to make opted-out teams noticeable
   When normalization is enabled for a team, its loudness levels are computed
   in the background as if the 4ccm had just been loaded
-- Undo Last Goal now also restores the goalhorn's pre-play state
-  Previously Undo only reverted the score, the wrongly-clicked goalhorn would keep its
-  playback position and warcry state. Undo now restores the cached playback position,
-  warcry flag, and firstPlay state to what they were before the goal was scored
+- RigDJ now reads, displays, and preserves the "sync" and "normalize" team flags
+  Both default to checked (enabled); unchecking writes "sync;no" / "normalize;no"
+  to the .4ccm file
+- Undo now restores the cached playback position, warcry flag, and firstPlay state to
+  what they were before the goal was scored. Previously Undo only reverted the score,
+  the wrongly-clicked goalhorn would keep its playback position and warcry state
 - Loading a 4ccm now fully resets the team previously in that slot (stops music,
   clears cached positions, resets event timers) before replacing it
 - Fixed the Reset button only clearing the most recently played song's cached position

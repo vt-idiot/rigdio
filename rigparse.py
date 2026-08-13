@@ -150,7 +150,7 @@ def parse (filename, load = True, home = True, progress_callback=None):
          if ( name not in reserved ):
             players[name].extend(players['goal'])
    print("Loaded songs for team /{}/".format(tname))
-   return players, tname, events, normalize
+   return players, tname, events, sync, normalize
 
 def songCheck (folder, name):
    normalized = splitext(name)[0] + "_normalized"
@@ -177,9 +177,8 @@ def songCheck (folder, name):
    return folder+name
 
 def main ():
-   file = parse("./music/4cc/m/m.4ccm")
+   file, _tname, _events, _sync, _normalize = parse("./music/4cc/m/m.4ccm")
    file["Char's Zaku II"][0].song.pause = False
-   i = 0
    time.sleep(15)
    file["Char's Zaku II"][0].song.pause = True
    time.sleep(5)
