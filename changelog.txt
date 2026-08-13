@@ -1,4 +1,16 @@
 13/08/26
+- Added "normalize;no" modifier in .4ccm files
+  Managers with a curated, pre-normalized music export can opt out of loudness
+  normalization by writing "normalize;no" below the team name (like "sync;no")
+  When set, rigdio skips loudness analysis and uses a baseline of 0 dB for all of
+  that team's tracks (volume boost still applies to louder-marked tracks)
+- Added per-team "Normalize: Yes / No" toggle button below the Reset buttons
+  Only shown when normalize_volume is enabled in config.yml
+  Lets the streamer force normalization on for a team that opted out, or turn it
+  off for a team that allowed it, after load
+  "Normalize: No" is shown in bold to make opted-out teams noticeable
+  When normalization is enabled for a team, its loudness levels are computed
+  in the background as if the 4ccm had just been loaded
 - Undo Last Goal now also restores the goalhorn's pre-play state
   Previously Undo only reverted the score, the wrongly-clicked goalhorn would keep its
   playback position and warcry state. Undo now restores the cached playback position,

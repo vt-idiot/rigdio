@@ -4,7 +4,7 @@ from legacy import ConditionList, ConditionPlayer, start_background_analysis
 from config import settings
 
 # reserved names
-reserved = set(['anthem', 'victory', 'goal', 'name', 'chant', ';event', 'sync'])
+reserved = set(['anthem', 'victory', 'goal', 'name', 'chant', ';event', 'sync', 'normalize'])
 
 def parse (filename, load = True, home = True, progress_callback=None):
    """Parses a music export file and loads it into memory."""
@@ -37,12 +37,23 @@ def parse (filename, load = True, home = True, progress_callback=None):
       tname = nameline[1].lower()
       lines = lines[1:]
 
-   # check for sync flag (defaults to yes)
+   # check for sync and normalize flags (defaults to yes for both)
+   # both flags are optional and may appear in any order below the team name
    sync = True
-   if lines and lines[0].split(';')[0].strip().lower() == "sync":
-      syncval = lines[0].split(';')[1].strip().lower()
-      sync = syncval not in ("no", "off", "false", "0")
-      print("Sync flag: {}".format("enabled" if sync else "disabled"))
+   normalize = True
+   while lines and lines[0].split(';')[0].strip().lower() in ("sync", "normalize"):
+      parts = lines[0].split(';')
+      flag = parts[0].strip().lower()
+      val = parts[1].strip().lower() if len(parts) > 1 else ""
+      enabled = val not in ("no", "off", "false", "0")
+      if flag == "sync":
+         sync = enabled
+         print("Sync flag: {}".format("enabled" if sync else "disabled"))
+      else:
+         # when set to no, the manager opts out of loudness normalization;
+         # the streamer can still force it back on via the per-team toggle button
+         normalize = enabled
+         print("Normalize flag: {}".format("enabled" if normalize else "disabled"))
       lines = lines[1:]
 
    # iterate across lines
@@ -64,7 +75,7 @@ def parse (filename, load = True, home = True, progress_callback=None):
       song_count = len(pre_files)
       if progress_callback:
          progress_callback(-2, song_count)
-      if settings.config["normalize_volume"]:
+      if settings.config["normalize_volume"] and normalize:
          start_background_analysis(pre_files, settings.level["target"])
    # main pass: create ConditionPlayer objects
    for line in lines:
@@ -94,7 +105,8 @@ def parse (filename, load = True, home = True, progress_callback=None):
             songname=filename,
             home=home,
             type=songtype,
-            sync=sync)
+            sync=sync,
+            normalize=normalize)
          if progress_callback:
             progress_callback(-1, -1)
       # otherwise, ConditionList uses less memory and doesn't make mpv calls
@@ -138,7 +150,7 @@ def parse (filename, load = True, home = True, progress_callback=None):
          if ( name not in reserved ):
             players[name].extend(players['goal'])
    print("Loaded songs for team /{}/".format(tname))
-   return players, tname, events
+   return players, tname, events, normalize
 
 def songCheck (folder, name):
    normalized = splitext(name)[0] + "_normalized"

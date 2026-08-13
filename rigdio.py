@@ -74,6 +74,19 @@ class Rigdio (Frame):
       Button(awayButtons, text="Load Away Team", command=lambda: self.loadFile(False), bg=self.colours["away"]).pack(fill=X)
       Button(awayButtons, text="Reset", command=lambda: self.resetTeam(False), bg=self.colours["reset"]).pack()
       awayButtons.grid(row=0, column=2)
+      # per-team normalize toggle buttons (only when global normalize is enabled)
+      # shown below the reset buttons with a gap; disabled until a team is loaded
+      self.normalizeButtons = {}
+      if settings.config["normalize_volume"]:
+         # small gap then the toggle button, in each team's button column
+         Frame(homeButtons, height=8).pack()
+         self.homeNormalizeBtn = Button(homeButtons, text="Normalize: Yes", command=lambda: self.toggleNormalize(True), bg=self.colours["normalize"], state=DISABLED)
+         self.homeNormalizeBtn.pack(fill=X)
+         self.normalizeButtons[True] = self.homeNormalizeBtn
+         Frame(awayButtons, height=8).pack()
+         self.awayNormalizeBtn = Button(awayButtons, text="Normalize: Yes", command=lambda: self.toggleNormalize(False), bg=self.colours["normalize"], state=DISABLED)
+         self.awayNormalizeBtn.pack(fill=X)
+         self.normalizeButtons[False] = self.awayNormalizeBtn
       # score widget
       self.scoreWidget = ScoreWidget(self, self.game)
       self.game.widget = self.scoreWidget
@@ -333,7 +346,7 @@ class Rigdio (Frame):
       self.events.reset(home)
 
    def _finishLegacyLoad (self, f, home, result):
-      tmusic, tname, events = result
+      tmusic, tname, events, normalize = result
       # retrieve list of song files that could not be found
       # (song as a string instead of MediaPlayer indicates file is missing)
       missing = [
@@ -358,10 +371,11 @@ class Rigdio (Frame):
             self._resetTeamBeforeLoad(True)
             self.home.grid_forget()
             self.home.clear()
-         self.home = TeamMenuLegacy(self, tname, tmusic, True, self.game)
+         self.home = TeamMenuLegacy(self, tname, tmusic, True, self.game, normalize=normalize)
          if self.away is not None:
             self.home.anthemButton.awayButtonHook = self.away.anthemButton
          self.home.grid(row = 1, column = 0, rowspan=2, sticky=N)
+         self._updateNormalizeButton(home=True)
          # apply master volume to newly loaded team if normalize_volume is enabled
          if settings.config["normalize_volume"]:
             for button in self.home.buttons:
@@ -387,10 +401,11 @@ class Rigdio (Frame):
             self._resetTeamBeforeLoad(False)
             self.away.grid_forget()
             self.away.clear()
-         self.away = TeamMenuLegacy(self, tname, tmusic, False, self.game)
+         self.away = TeamMenuLegacy(self, tname, tmusic, False, self.game, normalize=normalize)
          if self.home is not None:
             self.home.anthemButton.awayButtonHook = self.away.anthemButton
          self.away.grid(row = 1, column = 2, rowspan=2, sticky=N)
+         self._updateNormalizeButton(home=False)
          # apply master volume to newly loaded team if normalize_volume is enabled
          if settings.config["normalize_volume"]:
             for button in self.away.buttons:
@@ -448,6 +463,41 @@ class Rigdio (Frame):
       # update the score widget
       self.scoreWidget.updateScore()
       print("{} team reset.".format("Home" if home else "Away"))
+
+   # update the per-team normalize toggle button to reflect the loaded team's state
+   def _updateNormalizeButton (self, home):
+      btn = self.normalizeButtons.get(home)
+      if btn is None:
+         return
+      team = self.home if home else self.away
+      if team is None:
+         btn.configure(text="Normalize: Yes", state=DISABLED, font="TkDefaultFont")
+         return
+      btn.configure(state=NORMAL)
+      if team.normalize:
+         btn.configure(text="Normalize: Yes", font="TkDefaultFont")
+      else:
+         btn.configure(text="Normalize: No", font="TkDefaultFont 9 bold")
+
+   # toggle normalization for a loaded team on click of the Normalize button
+   def toggleNormalize (self, home):
+      team = self.home if home else self.away
+      if team is None:
+         return
+      newval = not team.normalize
+      team.setNormalize(newval)
+      # also propagate to that team's chants
+      chants = self.chantsManager.homeChants if home else self.chantsManager.awayChants
+      for chant in chants:
+         if hasattr(chant, 'normalize'):
+            chant.normalize = newval
+      self._updateNormalizeButton(home)
+      # when (re-)enabling normalization, compute loudness in the background
+      # as if the 4ccm had just been loaded
+      if newval:
+         filepaths = team.allSongPaths()
+         filepaths.extend(c.songname for c in chants if hasattr(c, 'songname'))
+         legacy.start_background_analysis(filepaths, settings.level["target"])
 
    def loadFile (self, home = True):
       f = filedialog.askopenfilename(filetypes = (("Rigdio export files", "*.4ccm"),("All files","*.*")))

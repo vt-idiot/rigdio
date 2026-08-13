@@ -238,7 +238,7 @@ class Timer:
       self.frame.updateSongTimer(0, 0)
 
 class TeamMenuLegacy (Frame):
-   def __init__ (self, master, tname, players, home, game):
+   def __init__ (self, master, tname, players, home, game, normalize=True):
       Frame.__init__(self, master)
       # store information from constructor
       self.master = master
@@ -246,6 +246,8 @@ class TeamMenuLegacy (Frame):
       self.players = players
       self.home = home
       self.game = game
+      # per-team normalization opt-out (only meaningful when global normalize_volume is on)
+      self.normalize = normalize
       # list of player buttons
       self.buttons = []
       # list of player names for use in buttons
@@ -393,6 +395,23 @@ class TeamMenuLegacy (Frame):
    def reset (self):
       for button in self.buttons:
          button.reset()
+
+   # set the per-team normalize flag and propagate it to every loaded ConditionPlayer
+   def setNormalize (self, value):
+      self.normalize = value
+      for playerList in self.players.values():
+         for clist in playerList:
+            if hasattr(clist, 'normalize'):
+               clist.normalize = value
+
+   # return the file paths of every song loaded for this team (for background analysis)
+   def allSongPaths (self):
+      paths = []
+      for playerList in self.players.values():
+         for clist in playerList:
+            if hasattr(clist, 'songname'):
+               paths.append(clist.songname)
+      return paths
 
    def goNuclear(self):
       for playerButton in self.buttons:

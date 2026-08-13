@@ -216,11 +216,14 @@ class ConditionList:
       return output
 
 class ConditionPlayer (ConditionList):
-   def __init__ (self, pname, tname, data, songname, home, type = "goalhorn", sync = False):
+   def __init__ (self, pname, tname, data, songname, home, type = "goalhorn", sync = False, normalize = True):
       ConditionList.__init__(self,pname,tname,data,songname,home,False)
       self.type = type
       self.isGoalhorn = type=="goalhorn"
       self.sync = sync
+      # per-team normalize opt-out; when False, loudness analysis is skipped
+      # and a baseline of 0 dB is used (boost still applies to louder-marked tracks)
+      self.normalize = normalize
       self.song = self.loadsong(songname)
       self.fade = None
       self.startTime = 0
@@ -293,17 +296,24 @@ class ConditionPlayer (ConditionList):
          thread.join()
       # apply normalization gain as audio filter before playback (lazy — only when actually played)
       if settings.config["normalize_volume"] and isinstance(self.song, mpv.MPV):
-         fullpath = abspath(self.songname)
-         gain, needs_limiter = analyze_loudness(fullpath, settings.level["target"])
-         if gain is not None:
-            if self.louder:
-               total_gain = gain + self.boostValue
-               self.song.af = "volume={:.1f}dB,alimiter=limit=0.95".format(total_gain)
-            elif needs_limiter:
-               self.song.af = "volume={:.1f}dB,alimiter=limit=0.95".format(gain)
-            else:
-               self.song.af = "volume={:.1f}dB".format(gain)
-            self.normalize_gain = gain
+         if self.normalize:
+            fullpath = abspath(self.songname)
+            gain, needs_limiter = analyze_loudness(fullpath, settings.level["target"])
+            if gain is not None:
+               if self.louder:
+                  total_gain = gain + self.boostValue
+                  self.song.af = "volume={:.1f}dB,alimiter=limit=0.95".format(total_gain)
+               elif needs_limiter:
+                  self.song.af = "volume={:.1f}dB,alimiter=limit=0.95".format(gain)
+               else:
+                  self.song.af = "volume={:.1f}dB".format(gain)
+               self.normalize_gain = gain
+         else:
+            # normalization opted out for this team: baseline 0 dB
+            # boost still applies on top of the baseline for louder-marked tracks
+            self.normalize_gain = 0
+            if self.louder and self.boostValue != 0:
+               self.song.af = "volume={:.1f}dB,alimiter=limit=0.95".format(float(self.boostValue))
       self.song.pause = False
       self.song.volume = self._toMpvVolume(self.maxVolume)
       # restore saved playback position for sync-enabled goalhorns
