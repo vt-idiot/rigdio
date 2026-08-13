@@ -5,6 +5,11 @@ __pycache__/
 build/
 dist/
 *.spec
+# Keep the combined build spec
+!rigdio-combined.spec
+
+# Ignore downloaded tools (UPX, etc.)
+tools/
 
 # Ignore log files
 *.log

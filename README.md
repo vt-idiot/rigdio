@@ -14,6 +14,7 @@ If you're interested in building Rigdio/RigDJ yourself, here's some info that'll
 * [python-mpv](https://pypi.org/project/python-mpv/) - Python module used for utilising the mpv media library functions to play songs on Rigdio.
 * [PyYAML](https://pypi.org/project/PyYAML/) - Python module used for parsing the default settings used in Rigdio.
 * [pyinstaller](https://pypi.org/project/pyinstaller/) - Python module used for building the executable files.
+* [UPX](https://github.com/upx/upx/releases) - Optional. Executable packer used to compress the `_internal` binaries after building, reducing total size by ~70%. Download the win64 zip, extract it to `tools/upx/`, and the build script will use it automatically.
 * [ffmpeg](https://www.ffmpeg.org/download.html) - Multimedia framework required for loudness analysis. A minimal `ffmpeg.exe` (~1.8 MB) is included in the repository. If you need to rebuild it, see the instructions below.
 
 ### Running the Python file
@@ -51,24 +52,23 @@ This will:
 * You can pass `--jobs N` to control parallelism: `python build-ffmpeg.py --jobs 4`.
 
 ### Building Rigdio/RigDJ
-Once you've fully made and tested out your code changes, you can start building the executables. Simply run the batch file for whichever executable you wish to build (**compile-rigdio.bat** for Rigdio, **compile-rigdj.bat** for RigDJ) and wait for the process to finish. Assuming the build process went smoothly and without error, you will see a couple new files and folders. The built executable will be stored in the `dist` folder, alongside a `_internal` folder containing the bundled Python runtime and dependencies. Both the executable and its `_internal` folder are required to run the program.<br>
-**TIP:** Replace the executable and `_internal` folder in the Rigdio release folder with your own built ones before testing it out to have a more accurate runtime environment.
+Once you've fully made and tested out your code changes, you can start building the executables. Run **compile-combined.bat** to build both Rigdio and RigDJ into a single `dist/rigdio/` folder with a shared `_internal` directory containing the bundled Python runtime and dependencies. Both executables share the same `_internal` folder, avoiding duplication of the ~53 MB of common dependencies.<br>
+**TIP:** Replace the contents of the Rigdio release folder with your own built ones before testing it out to have a more accurate runtime environment.
 
-If you're on Mac/Linux then you will need to run the command line manually; Fortunately it's short and only a single line.<br>
-The command line to build the Rigdio executable is
-```
-pyinstaller --noconsole --icon=rigdio.ico --add-data "rigdio.ico;." rigdio.py
-```
+If UPX is installed in `tools/upx/`, the build will also compress the binaries in `_internal` to reduce the total size by ~70%. UPX is optional — the build works without it, just with larger output.
 
-And the command line to build the RigDJ executable is
+If you're on Mac/Linux then you will need to run the command line manually. The build uses a spec file:
 ```
-pyinstaller --noconsole --icon=rigdj.ico --add-data "rigdj.ico;." rigdj.py
+pyinstaller rigdio-combined.spec -y
+```
+Then optionally compress the binaries:
+```
+python compress-internal.py
 ```
 
 ### Assembling a Release
 To create a complete Rigdio release package, you will need the following files in a single folder:
-* `rigdio.exe` and its `_internal` folder - Built from `compile-rigdio.bat`
-* `rigdj.exe` and its `_internal` folder - Built from `compile-rigdj.bat`
+* `rigdio.exe`, `rigdj.exe`, and their shared `_internal` folder - Built from `compile-combined.bat`
 * `libmpv-2.dll` - The 64-bit mpv library DLL
 * `ffmpeg.exe` - Minimal ffmpeg build (included in the repo, or rebuild with `build-ffmpeg.bat`)
 * `config.yml` - Default configuration file
