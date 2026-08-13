@@ -15,15 +15,15 @@ SETTINGS_META = [
        "When enabled, rigdio analyzes every song's loudness and applies gain\n"
        "so they all play at a consistent volume level. Replaces individual\n"
        "volume sliders with a single Master Volume slider."),
+      ("show_goalhorn_volume_default", "Show volume sliders by default", "check", 1,
+       "Only considered when normalization is disabled.\n"
+       "This controls whether each goalhorn's individual volume\n"
+       "slider is visible by default when a team is loaded.\n"
+       "They can still be toggled per-goalhorn with the speaker icon."),
    ]),
    ("Display & UI", [
       ("dark_mode_enabled", "Dark mode", "check", 0,
        "Switches the interface to a dark colour scheme."),
-      ("show_goalhorn_volume_default", "Show volume sliders by default", "check", 1,
-       "[Only considered when normalization is disabled]\n"
-       "This controls whether each goalhorn's individual volume\n"
-       "slider is visible by default when a team is loaded.\n"
-       "They can still be toggled per-goalhorn with the speaker icon."),
       ("alphabetical_sort_goalhorns", "Sort goalhorns alphabetically", "check", 0,
        "Sorts player goalhorn buttons alphabetically by player name when a\n"
        "team is loaded. When disabled, goalhorns appear in file order."),
@@ -77,6 +77,7 @@ class SettingsWindow:
       self.original = dict(settings.configs["config"])
       # store the widgets for each setting
       self.widgets = {}
+      self.labels = {}
       self.vars = {}
       self._buildUI()
 
@@ -98,6 +99,7 @@ class SettingsWindow:
             # label
             lbl = Label(self.win, text=label)
             lbl.grid(row=row, column=1, sticky=W, padx=(0,5), pady=2)
+            self.labels[key] = lbl
             # control
             if typ == "check":
                var = IntVar(value=current)
@@ -108,6 +110,9 @@ class SettingsWindow:
                cb.grid(row=row, column=2, sticky=W, padx=(0,12), pady=2)
                self.widgets[key] = cb
                self.vars[key] = var
+               # wire up normalize_volume to toggle show_goalhorn_volume_default
+               if key == "normalize_volume":
+                  var.trace_add("write", self._updateSliderDependentState)
             elif typ == "scale":
                var = DoubleVar(value=current)
                sc = Scale(self.win, from_=0.0, to=1.0, resolution=0.05,
@@ -123,6 +128,8 @@ class SettingsWindow:
                self.widgets[key] = sc
                self.vars[key] = var
             row += 1
+      # apply initial dependent state (grey out slider setting if normalize is on)
+      self._updateSliderDependentState()
       # restart note (hidden when opened without restart support, e.g. rigdj)
       if self.restart:
          Label(self.win, text="All settings require restarting to take effect",
@@ -138,6 +145,17 @@ class SettingsWindow:
          Button(btnFrame, text="Save and Restart", command=self.saveAndRestart,
             bg=self.colours["reset"]).pack(side=LEFT, padx=5)
       Button(btnFrame, text="Cancel", command=self.cancel).pack(side=LEFT, padx=5)
+
+   def _updateSliderDependentState(self, *args):
+      """Grey out the 'Show volume sliders' setting when normalization is on."""
+      if "normalize_volume" not in self.vars or "show_goalhorn_volume_default" not in self.widgets:
+         return
+      normalize_on = self.vars["normalize_volume"].get()
+      state = DISABLED if normalize_on else NORMAL
+      self.widgets["show_goalhorn_volume_default"].configure(state=state)
+      if "show_goalhorn_volume_default" in self.labels:
+         self.labels["show_goalhorn_volume_default"].configure(
+            fg="grey" if normalize_on else self.colours["fg"])
 
    def _collectValues(self):
       """Write all setting values from the widgets into the live config."""
