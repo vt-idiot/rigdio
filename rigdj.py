@@ -9,7 +9,7 @@ from tkinter import *
 import tkinter.filedialog as filedialog
 import tkinter.messagebox as messagebox
 
-from config import settings, openConfig, applyDarkMode
+from config import settings, openConfig, applyDarkMode, applyLightMode, saveConfig
 from condition import *
 from conditioneditor import ConditionDialog
 
@@ -748,9 +748,15 @@ class Editor (Frame):
    def __init__ (self, master):
       # tkinter master window
       super().__init__(master)
-      # save/load
-      fileMenu = self.buildFileMenu()
-      fileMenu.pack(anchor="nw")
+      # top bar: file menu on the left, dark mode toggle on the right
+      topBar = Frame(self)
+      fileMenu = self.buildFileMenu(topBar)
+      fileMenu.pack(side=LEFT, anchor="nw")
+      self.darkModeBtn = Button(topBar,
+         text="Dark Mode: On" if settings.config["dark_mode_enabled"] else "Dark Mode: Off",
+         command=self.toggleDarkMode)
+      self.darkModeBtn.pack(side=RIGHT, anchor="ne")
+      topBar.pack(fill=X)
       self.previewer = None
       # file name of the .4ccm
       self.filename = None
@@ -812,16 +818,37 @@ class Editor (Frame):
       leftFrame.pack(anchor="nw",side=LEFT)
       self.playerMenu.pack(anchor="nw",side=LEFT)
 
-   def buildFileMenu (self):
+   def buildFileMenu (self, parent=None):
       """
          Constructs the file save/load menu buttons.
       """
-      buttons = Frame(self)
+      buttons = Frame(parent if parent is not None else self)
       Button(buttons, text="New .4ccm", command=self.clear4ccm).pack(side=LEFT)
       Button(buttons, text="Load .4ccm", command=self.load4ccm).pack(side=LEFT)
       Button(buttons, text="Save .4ccm", command=self.save4ccm).pack(side=LEFT)
       Button(buttons, text="Save .4ccm As...", command=self.save4ccmas).pack(side=LEFT)
       return buttons
+
+   def toggleDarkMode (self):
+      """Toggle dark mode on/off live and persist the setting to config.yml."""
+      # flip the config value
+      settings.configs["config"]["dark_mode_enabled"] = 0 if settings.config["dark_mode_enabled"] else 1
+      dark = settings.config["dark_mode_enabled"]
+      # apply the palette to the root window
+      root = self.winfo_toplevel()
+      if dark:
+         applyDarkMode(root)
+      else:
+         applyLightMode(root)
+      # update the preview text background to match
+      if self.previewer is not None:
+         bg = settings.darkColours["bg"] if dark else "#f0f0f0"
+         self.previewer.text.configure(bg=bg)
+      # update the button label
+      self.darkModeBtn.configure(text="Dark Mode: On" if dark else "Dark Mode: Off")
+      # persist to config.yml
+      saveConfig()
+      print("Dark mode {}.".format("enabled" if dark else "disabled"))
 
    def clear4ccm (self):
       self.filename = None

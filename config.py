@@ -24,7 +24,7 @@ defaults = dict(
       time=2
    ),
    lightColours=dict(
-      bg='#ffffff',
+      bg='#f0f0f0',
       fg='#1e1e1e',
       home='#e0e0fc',
       away='#ffe0dd',
@@ -77,6 +77,22 @@ def applyDarkMode(root):
       activeBackground=settings.darkColours["accent"],
       activeForeground=settings.darkColours["fg"],
       highlightColor=settings.darkColours["accent"])
+
+def applyLightMode(root):
+   root.tk_setPalette(
+      background=settings.lightColours["bg"],
+      foreground=settings.lightColours["fg"],
+      activeBackground=settings.lightColours["home"],
+      activeForeground=settings.lightColours["fg"],
+      highlightColor=settings.lightColours["kill"])
+
+def saveConfig():
+   """Write the current config values back to config.yml."""
+   try:
+      with open("config.yml", "w") as configFile:
+         yaml.dump(settings.configs["config"], configFile, default_flow_style=False)
+   except Exception as e:
+      print("Error saving config file:", e)
 
 def recursiveDictCheck(d, defaultD, location):
    for key in defaultD:
