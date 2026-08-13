@@ -19,7 +19,7 @@ if not exist "%~dp0libmpv-2.dll" (
     echo *** Download it from https://github.com/eko5624/mpv-win64/releases/tag/2024-04-29 ***
     echo.
 ) else (
-    copy /Y "%~dp0libmpv-2.dll" "%~dp0dist\rigdio\"
+    copy /Y "%~dp0libmpv-2.dll" "%~dp0dist\rigdio\_internal\"
 )
 if not exist "%~dp0ffmpeg.exe" (
     echo.
@@ -28,5 +28,6 @@ if not exist "%~dp0ffmpeg.exe" (
     echo *** See the build guide for instructions on building a minimal ffmpeg.exe. ***
     echo.
 ) else (
-    copy /Y "%~dp0ffmpeg.exe" "%~dp0dist\rigdio\"
+    copy /Y "%~dp0ffmpeg.exe" "%~dp0dist\rigdio\_internal\"
 )
+if exist "%~dp0changelog.txt" copy /Y "%~dp0changelog.txt" "%~dp0dist\rigdio\"

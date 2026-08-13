@@ -69,6 +69,8 @@ python compress-internal.py
 ### Assembling a Release
 To create a complete Rigdio release package, you will need the following files in a single folder:
 * `rigdio.exe`, `rigdj.exe`, and their shared `_internal` folder - Built from `compile-combined.bat`
-* `libmpv-2.dll` - The 64-bit mpv library DLL
-* `ffmpeg.exe` - Minimal ffmpeg build (included in the repo, or rebuild with `build-ffmpeg.bat`)
-* `config.yml` - Default configuration file
+* `libmpv-2.dll` - The 64-bit mpv library DLL (place inside `_internal/`)
+* `ffmpeg.exe` - Minimal ffmpeg build (included in the repo, or rebuild with `build-ffmpeg.bat`; place inside `_internal/`)
+* `changelog.txt` - Changelog file (included in the repo)
+
+The `compile-combined.bat` script copies `libmpv-2.dll`, `ffmpeg.exe`, and `changelog.txt` into the build output automatically. `config.yml` is not included — rigdio generates it on first run.
