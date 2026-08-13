@@ -731,7 +731,9 @@ class Preview4CCM (Frame):
       super().__init__(master, editor, **kwargs)
       self.editor = editor
       self.buffer = StringIO()
-      self.text = Text(self, state=DISABLED, width=60)
+      # use the main background colour to signal the preview is read-only
+      bg = settings.darkColours["bg"] if settings.config["dark_mode_enabled"] else "#f0f0f0"
+      self.text = Text(self, state=DISABLED, width=60, bg=bg)
       self.text.pack(fill=Y,expand=1)
 
    def update (self):
