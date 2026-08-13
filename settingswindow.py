@@ -7,7 +7,7 @@ from uiutil import ToolTip, palette
 
 # Settings metadata: grouped by section, each entry is:
 #   (key, label, type, default, tooltip)
-# type is "check" (0/1), "scale" (float slider), or "scale_int" (int slider)
+# type is "check" (0/1), "int_entry" (integer text input), or "float_entry" (float text input)
 # All settings require a restart to take effect.
 SETTINGS_META = [
    ("Audio & Normalization", [
@@ -36,7 +36,7 @@ SETTINGS_META = [
        "Sets the default state of the chant timer checkbox in the chants\n"
        "window. When on, chants automatically fade out after the timer\n"
        "duration."),
-      ("chant_random_decay_weight", "Chant repeat decay weight", "scale", 0.3,
+      ("chant_random_decay_weight", "Chant repeat decay weight", "float_entry", 0.3,
        "Controls how quickly repeated chants become less likely to be picked\n"
        "again when using random chant selection. Lower values = less repetition.\n"
        "Set to 0.0 to prevent repeats completely. Set to 1.0 for uniform random."),
@@ -114,22 +114,15 @@ class SettingsWindow:
                # wire up normalize_volume to toggle show_goalhorn_volume_default
                if key == "normalize_volume":
                   var.trace_add("write", self._updateSliderDependentState)
-            elif typ == "scale":
-               var = DoubleVar(value=current)
-               sc = Scale(self.win, from_=0.0, to=1.0, resolution=0.05,
-                  orient=HORIZONTAL, variable=var, showvalue=1, length=120)
-               sc.grid(row=row, column=2, sticky=W, padx=(0,12), pady=2)
-               self.widgets[key] = sc
-               self.vars[key] = var
-            elif typ == "scale_int":
-               var = IntVar(value=current)
-               sc = Scale(self.win, from_=0, to=60, resolution=1,
-                  orient=HORIZONTAL, variable=var, showvalue=1, length=120)
-               sc.grid(row=row, column=2, sticky=W, padx=(0,12), pady=2)
-               self.widgets[key] = sc
-               self.vars[key] = var
             elif typ == "int_entry":
                var = IntVar(value=current)
+               entry = Entry(self.win, textvariable=var, width=6,
+                  justify=RIGHT, bg=self.colours["panel"])
+               entry.grid(row=row, column=2, sticky=W, padx=(0,12), pady=2)
+               self.widgets[key] = entry
+               self.vars[key] = var
+            elif typ == "float_entry":
+               var = DoubleVar(value=current)
                entry = Entry(self.win, textvariable=var, width=6,
                   justify=RIGHT, bg=self.colours["panel"])
                entry.grid(row=row, column=2, sticky=W, padx=(0,12), pady=2)
