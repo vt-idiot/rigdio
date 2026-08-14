@@ -229,13 +229,28 @@ def analyze_loudness(filepath, target_db, is_chant=False):
             basename(fullpath), mean_db, max_db, target_db, gain))
    return (gain, needs_limiter)
 
-def start_background_analysis(filepaths, target_db, chant_paths=None):
+def start_background_analysis(filepaths, target_db, chant_paths=None, anthem_paths=None, victory_paths=None):
    """Start analyzing loudness for all files in a background thread pool.
    Non-blocking: returns immediately. Results populate _loudness_cache.
    If a file is played before its analysis completes, play() will wait for it.
    chant_paths: iterable of paths for chant files, which receive an additional
-   loud-part RMS analysis pass so normalization targets their loud portion."""
+   loud-part RMS analysis pass so normalization targets their loud portion.
+   anthem_paths / victory_paths: iterables for anthem and victory anthem files,
+   used only for priority ordering (anthems are played first after loading, so
+   they are analyzed before goalhorns, which are analyzed before chants, which
+   are analyzed before victory anthems)."""
    chant_set = set(abspath(f) for f in (chant_paths or []))
+   anthem_set = set(abspath(f) for f in (anthem_paths or []))
+   victory_set = set(abspath(f) for f in (victory_paths or []))
+   # priority: anthem=0, goalhorn=1, chant=2, victory=3
+   def priority(f):
+      if f in anthem_set:
+         return 0
+      if f in victory_set:
+         return 3
+      if f in chant_set:
+         return 2
+      return 1
    unique = set(abspath(f) for f in filepaths if isfile(abspath(f)))
    to_analyze = []
    for f in unique:
@@ -250,6 +265,10 @@ def start_background_analysis(filepaths, target_db, chant_paths=None):
          to_analyze.append((f, True))  # need loud-part pass
    if not to_analyze:
       return
+   # sort by priority so higher-priority files (anthems first) are submitted
+   # to the thread pool before lower-priority ones; with 4 workers the first
+   # batch picks up the highest-priority files
+   to_analyze.sort(key=lambda item: priority(item[0]))
    print("Starting background loudness analysis for {} file(s)...".format(len(to_analyze)))
    def worker():
       with ThreadPoolExecutor(max_workers=min(4, len(to_analyze))) as executor:

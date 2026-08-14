@@ -534,7 +534,10 @@ class Rigdio (Frame):
          self._updateNormalizeButton(home)
          filepaths = team.allSongPaths(chants)
          chant_paths = [c.songname for c in chants if hasattr(c, 'songname')]
-         legacy.start_background_analysis(filepaths, settings.level["target"], chant_paths=chant_paths)
+         anthem_paths = [c.songname for c in team.players.get("anthem", []) if hasattr(c, 'songname')]
+         victory_paths = [c.songname for c in team.players.get("victory", []) if hasattr(c, 'songname')]
+         legacy.start_background_analysis(filepaths, settings.level["target"],
+            chant_paths=chant_paths, anthem_paths=anthem_paths, victory_paths=victory_paths)
          # re-apply the new normalized baseline to any currently playing track;
          # run in a background thread because analyze_loudness may block while
          # the background analysis pool catches up on the currently playing file

@@ -71,6 +71,8 @@ def parse (filename, load = True, home = True, progress_callback=None, normalize
    if load:
       pre_files = []
       chant_pre_files = []
+      anthem_pre_files = []
+      victory_pre_files = []
       for line in lines:
          if len(line) == 0 or line[0] == "#":
             continue
@@ -86,11 +88,16 @@ def parse (filename, load = True, home = True, progress_callback=None, normalize
          pre_files.append(filepath)
          if player == "chant":
             chant_pre_files.append(filepath)
+         elif player == "anthem":
+            anthem_pre_files.append(filepath)
+         elif player == "victory":
+            victory_pre_files.append(filepath)
       song_count = len(pre_files)
       if progress_callback:
          progress_callback(-2, song_count)
       if settings.config["normalize_volume"] and normalize:
-         start_background_analysis(pre_files, settings.level["target"], chant_paths=chant_pre_files)
+         start_background_analysis(pre_files, settings.level["target"],
+            chant_paths=chant_pre_files, anthem_paths=anthem_pre_files, victory_paths=victory_pre_files)
    # main pass: create ConditionPlayer objects
    for line in lines:
       # ignore comments
