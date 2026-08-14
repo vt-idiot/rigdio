@@ -14,7 +14,7 @@ from gamestate import GameState
 from songgui import *
 from version import rigdio_version as version
 from rigdj_util import setMaxWidth
-from rigdio_util import volumeColor, sliderToDb
+from rigdio_util import volumeColor, sliderToDb, combineVolume
 from event import EventController
 import chantswindow as cWin
 import legacy
@@ -68,6 +68,11 @@ class Rigdio (Frame):
       self.homeFile = None
       self.awayFile = None
       self.masterVolumeValue = 100
+      # chants volume slider value — dB offset on top of master when normalize
+      # is enabled, or the direct chant volume when normalize is disabled
+      self.chantsVolumeValue = 100
+      # flag to prevent recursive slider syncing between main window and chants window
+      self._syncingChantsVolume = False
       # UI colour palette
       self.colours = settings.darkColours if settings.config["dark_mode_enabled"] else settings.lightColours
       # file menu
@@ -129,49 +134,62 @@ class Rigdio (Frame):
       self.game.gametype = option.lower()
 
    def initMiddleStuff (self):
+      row = 0
       # chaos horn
-      Label(self.middleStuff, text=None).grid(columnspan=2)
+      Label(self.middleStuff, text=None).grid(row=row, columnspan=2); row += 1
       self.chaosHorn = Button(self.middleStuff, text="Chaoshorn", command=self.goNuclear, bg="#ee4b2b")
-      self.chaosHorn.grid(columnspan=2)
+      self.chaosHorn.grid(row=row, columnspan=2); row += 1
       self.killChaos = Button(self.middleStuff, text="Kill Chaoshorn", command=self.stopNuclear, bg=self.colours["kill"])
-      self.killChaos.grid(columnspan=2)
-      Label(self.middleStuff, text=None).grid(columnspan=2)
+      self.killChaos.grid(row=row, columnspan=2); row += 1
+      Label(self.middleStuff, text=None).grid(row=row, columnspan=2); row += 1
       # universal playback speed slider
-      Label(self.middleStuff, text="Playback Speed").grid(columnspan=2)
+      Label(self.middleStuff, text="Playback Speed").grid(row=row, columnspan=2); row += 1
       self.playbackSpeedLabel = Label(self.middleStuff, text="1.00x")
-      self.playbackSpeedLabel.grid(columnspan=2)
+      self.playbackSpeedLabel.grid(row=row, columnspan=2); row += 1
       self.playbackSpeedMenu = Scale(self.middleStuff, from_=0.25, to=4.00, orient=HORIZONTAL, command=self._playbackSpeedCommand, resolution=0.25, showvalue=0, digits=3)
       self.playbackSpeedMenu.set(1.00)
-      self.playbackSpeedMenu.grid(columnspan=2)
-      Label(self.middleStuff, text=None).grid(columnspan=2)
+      self.playbackSpeedMenu.grid(row=row, columnspan=2); row += 1
+      Label(self.middleStuff, text=None).grid(row=row, columnspan=2); row += 1
       # master volume slider (only shown when normalize_volume is enabled)
       if settings.config["normalize_volume"]:
-         Label(self.middleStuff, text="Master Volume").grid(columnspan=2)
+         Label(self.middleStuff, text="Master Volume").grid(row=row, columnspan=2); row += 1
          self.masterVolumeLabel = Label(self.middleStuff, text="+0 dB")
-         self.masterVolumeLabel.grid(columnspan=2)
+         self.masterVolumeLabel.grid(row=row, columnspan=2); row += 1
          self.masterVolume = Scale(self.middleStuff, from_=0, to=200, orient=HORIZONTAL, command=self.adjustMasterVolume, showvalue=0, troughcolor='#c8c8c8', bd=0, highlightthickness=0)
          self.masterVolume.set(100)
          self.masterVolume.configure(bg=volumeColor(100), activebackground=volumeColor(100))
-         self.masterVolume.grid(columnspan=2)
+         self.masterVolume.grid(row=row, columnspan=2); row += 1
+         # gap between master and chants volume sliders
+         Label(self.middleStuff, text=None).grid(row=row, columnspan=2); row += 1
       else:
          self.masterVolume = None
          self.masterVolumeLabel = None
+      # chants volume slider — always shown.
+      # When normalize is enabled this is a dB offset on top of master volume;
+      # when normalize is disabled this is the direct chant volume control.
+      Label(self.middleStuff, text="Chants Volume").grid(row=row, columnspan=2); row += 1
+      self.chantsVolumeLabel = Label(self.middleStuff, text="+0 dB")
+      self.chantsVolumeLabel.grid(row=row, columnspan=2); row += 1
+      self.chantsVolume = Scale(self.middleStuff, from_=0, to=200, orient=HORIZONTAL, command=self.setChantsVolume, showvalue=0, troughcolor='#c8c8c8', bd=0, highlightthickness=0)
+      self.chantsVolume.set(100)
+      self.chantsVolume.configure(bg=volumeColor(100), activebackground=volumeColor(100))
+      self.chantsVolume.grid(row=row, columnspan=2); row += 1
       # creates chants window and manager
       self.chantswindow = None
       self.chantsManager = cWin.ChantsManager(self.chantswindow, self)
       # manual chant controls
-      Label(self.middleStuff, text=None).grid(columnspan=2)
-      Button(self.middleStuff, text="Manual Chants", command=self.chant_window).grid(columnspan=2)
-      # blank space
-      Label(self.middleStuff, text=None).grid(columnspan=2)
-      # stop chant early button
-      self.stopEarlyButton = Button(self.middleStuff, text="Stop Chant Early", command=self.chantsManager.endThread, bg=self.colours["stop"])
-      self.stopEarlyButton.grid(columnspan=2)
+      Label(self.middleStuff, text=None).grid(row=row, columnspan=2); row += 1
+      Button(self.middleStuff, text="Manual Chants", command=self.chant_window).grid(row=row, columnspan=2); row += 1
       # random chant buttons accessible from the main window
       self.randomHome = cWin.ChantsButton(self.middleStuff, self.chantsManager, None, "Random", True, True)
-      self.randomHome.playButton.grid(row=13, column=0)
+      self.randomHome.playButton.grid(row=row, column=0)
       self.randomAway = cWin.ChantsButton(self.middleStuff, self.chantsManager, None, "Random", False, True)
-      self.randomAway.playButton.grid(row=13, column=1)
+      self.randomAway.playButton.grid(row=row, column=1)
+      self._randomButtonRow = row
+      row += 1
+      # stop chant early button
+      self.stopEarlyButton = Button(self.middleStuff, text="Stop Chant Early", command=self.chantsManager.endThread, bg=self.colours["stop"])
+      self.stopEarlyButton.grid(row=row, columnspan=2); row += 1
       return self.middleStuff
 
    def goNuclear(self):
@@ -206,6 +224,13 @@ class Rigdio (Frame):
             # sync label to the slider's current position
             self.playbackSpeedLabel.configure(text="{:.2f}x".format(self.playbackSpeedMenu.get()))
 
+   # effective chants volume — combined master + chants offset when normalize is
+   # enabled, or the direct chants volume value when normalize is disabled
+   def _effectiveChantsVolume (self):
+      if settings.config["normalize_volume"]:
+         return combineVolume(self.masterVolumeValue, self.chantsVolumeValue)
+      return self.chantsVolumeValue
+
    # master volume control — adjusts volume on all loaded songs and chants
    def adjustMasterVolume (self, value):
       value = int(value)
@@ -215,8 +240,8 @@ class Rigdio (Frame):
          if team is not None:
             for button in team.buttons:
                button.clists.adjustVolume(value)
-      # adjust all chants
-      self.chantsManager.adjustManagerVolume(value)
+      # adjust all chants using the combined master + chants offset
+      self.chantsManager.adjustManagerVolume(self._effectiveChantsVolume())
       # update slider color and dB label
       if self.masterVolume is not None:
          color = volumeColor(value)
@@ -228,15 +253,49 @@ class Rigdio (Frame):
             text = f"{vol} dB"
          self.masterVolumeLabel.configure(text=text)
 
+   # chants volume control — called by either the main window or chants window
+   # slider. When normalize is enabled, the slider value is a dB offset applied
+   # on top of the master volume; when disabled, it is the direct chant volume.
+   # Syncs both sliders so they always show the same value.
+   def setChantsVolume (self, value):
+      if self._syncingChantsVolume:
+         return
+      self._syncingChantsVolume = True
+      try:
+         value = int(value)
+         self.chantsVolumeValue = value
+         self.chantsManager.adjustManagerVolume(self._effectiveChantsVolume())
+         # update main window slider UI
+         if self.chantsVolume is not None:
+            color = volumeColor(value)
+            self.chantsVolume.configure(bg=color, activebackground=color)
+            vol = sliderToDb(value)
+            text = vol if vol == "Mute" else f"{vol} dB"
+            self.chantsVolumeLabel.configure(text=text)
+            self.chantsVolume.set(value)
+         # update chants window slider UI (if window is open)
+         if self.chantswindow is not None:
+            cf = self.chantswindow.chantsFrame
+            if cf.chantVolume is not None:
+               color = volumeColor(value)
+               cf.chantVolume.configure(bg=color, activebackground=color)
+               if cf.chantVolumeLabel is not None:
+                  vol = sliderToDb(value)
+                  text = vol if vol == "Mute" else f"{vol} dB"
+                  cf.chantVolumeLabel.configure(text=text)
+               cf.chantVolume.set(value)
+      finally:
+         self._syncingChantsVolume = False
+
    def replaceChantButton (self, chantsList, home):
       if home:
          self.randomHome.playButton.destroy()
          self.randomHome = cWin.ChantsButton(self.middleStuff, self.chantsManager, chantsList, "Random", True, True)
-         self.randomHome.playButton.grid(row=13, column=0)
+         self.randomHome.playButton.grid(row=self._randomButtonRow, column=0)
       else:
          self.randomAway.playButton.destroy()
          self.randomAway = cWin.ChantsButton(self.middleStuff, self.chantsManager, chantsList, "Random", False, True)
-         self.randomAway.playButton.grid(row=13, column=1)
+         self.randomAway.playButton.grid(row=self._randomButtonRow, column=1)
 
    # open and close the chants window
    def chant_window (self):
@@ -406,6 +465,10 @@ class Rigdio (Frame):
             # apply volume boost to chants if the home team has louder-marked tracks
             if self.home is not None and hasattr(self.home, 'hasLouder') and self.home.hasLouder:
                self.chantsManager.applyBoost(self.home.boostValue, True)
+            # re-apply the effective chants volume after setHome reset it to the
+            # default (combined master + chants offset when normalize is enabled,
+            # or the direct chants volume when disabled)
+            self.chantsManager.adjustManagerVolume(self._effectiveChantsVolume())
          if self.events is not None:
             self.events.setHome(parsed=events)
             print("Prepared events for team /{}/.".format(tname))
@@ -436,6 +499,10 @@ class Rigdio (Frame):
             # apply volume boost to chants if the away team has louder-marked tracks
             if self.away is not None and hasattr(self.away, 'hasLouder') and self.away.hasLouder:
                self.chantsManager.applyBoost(self.away.boostValue, False)
+            # re-apply the effective chants volume after setAway reset it to the
+            # default (combined master + chants offset when normalize is enabled,
+            # or the direct chants volume when disabled)
+            self.chantsManager.adjustManagerVolume(self._effectiveChantsVolume())
          if self.events is not None:
             self.events.setAway(parsed=events)
             print("Prepared events for team /{}/.".format(tname))

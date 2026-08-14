@@ -1,6 +1,6 @@
 from tkinter import *
 from config import settings
-from rigdio_util import volumeColor
+from rigdio_util import volumeColor, sliderToDb
 
 import os.path, threading, time, random
 
@@ -27,17 +27,22 @@ class ChantsFrame(Frame):
       # UI colour palette
       self.colours = settings.darkColours if settings.config["dark_mode_enabled"] else settings.lightColours
 
-      # volume slider (hidden when normalize_volume is enabled — master slider controls chants)
-      if not settings.config["normalize_volume"]:
-         Label(self, text="Chants Volume").grid(columnspan=2)
-         self.chantVolume = Scale(self, from_=0, to=200, orient=HORIZONTAL, command=self._volumeCommand, showvalue=0, length = 150, troughcolor='#c8c8c8', bd=0, highlightthickness=0)
-         self.chantVolume.set(self.chantsManager.lastVolume)
-         self.chantVolume.configure(bg=volumeColor(self.chantsManager.lastVolume), activebackground=volumeColor(self.chantsManager.lastVolume))
-         self.chantVolume.grid(columnspan=2)
-         # blank space between the sliders and chant buttons to separate them, make it look nicer
-         Label(self, text=None).grid(columnspan=2)
-      else:
-         self.chantVolume = None
+      # chants volume slider — always shown, mirrors the main window's chants
+      # volume slider. When normalize is enabled this is a dB offset on top of
+      # master volume; when disabled it is the direct chant volume control.
+      Label(self, text="Chants Volume").grid(columnspan=2)
+      self.chantVolumeLabel = Label(self, text="+0 dB")
+      self.chantVolumeLabel.grid(columnspan=2)
+      self.chantVolume = Scale(self, from_=0, to=200, orient=HORIZONTAL, command=self._volumeCommand, showvalue=0, length=150, troughcolor='#c8c8c8', bd=0, highlightthickness=0)
+      # initialize to the main window's current chants volume value
+      initVol = self.chantsManager.mainWin.chantsVolumeValue
+      self.chantVolume.set(initVol)
+      self.chantVolume.configure(bg=volumeColor(initVol), activebackground=volumeColor(initVol))
+      volDb = sliderToDb(initVol)
+      self.chantVolumeLabel.configure(text=volDb if volDb == "Mute" else f"{volDb} dB")
+      self.chantVolume.grid(columnspan=2)
+      # blank space between the sliders and chant buttons to separate them, make it look nicer
+      Label(self, text=None).grid(columnspan=2)
 
       # chant timer checkbox, for if the user doesn't want to use it
       # set the checkbox default state depending on user's configs
@@ -71,9 +76,9 @@ class ChantsFrame(Frame):
       self.createChants(self.chantsManager.homeChants, self.chantsManager.awayChants)
 
    def _volumeCommand (self, value):
-      self.chantsManager.adjustManagerVolume(value)
-      color = volumeColor(int(value))
-      self.chantVolume.configure(bg=color, activebackground=color)
+      # delegate to the main window's setChantsVolume, which handles both
+      # normalize on/off and syncs both sliders (including this one)
+      self.chantsManager.mainWin.setChantsVolume(value)
 
    # creates the chant buttons
    def createChants (self, home = False, away = False):
@@ -118,8 +123,12 @@ class ChantsFrame(Frame):
                self.awayChantsList.append(self.chantsButton)
                self.chantsButton.insert(i+9)
       # so that any newly loaded chants follow the current slider value instead of the default
-      vol = self.chantVolume.get() if self.chantVolume is not None else self.chantsManager.lastVolume
-      self.chantsManager.adjustManagerVolume(vol)
+      # use setChantsVolume so the effective volume (master + chants offset when
+      # normalize is enabled) is applied correctly and both sliders stay in sync
+      if self.chantVolume is not None:
+         self.chantsManager.mainWin.setChantsVolume(self.chantVolume.get())
+      else:
+         self.chantsManager.adjustManagerVolume(self.chantsManager.lastVolume)
 
    # clears out chants in the window
    def clearChantList (self, chantList):
