@@ -31,3 +31,5 @@ if not exist "%~dp0ffmpeg.exe" (
     copy /Y "%~dp0ffmpeg.exe" "%~dp0dist\rigdio\_internal\"
 )
 if exist "%~dp0changelog.txt" copy /Y "%~dp0changelog.txt" "%~dp0dist\rigdio\"
+
+pause
