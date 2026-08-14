@@ -1,5 +1,6 @@
 alphabetical_sort_chants: 0
 alphabetical_sort_goalhorns: 0
+chant_loud_part_percent: 20
 chant_random_decay_weight: 0.3
 chant_timer_enabled_default: 1
 dark_mode_enabled: 0

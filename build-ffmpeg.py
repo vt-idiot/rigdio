@@ -2,10 +2,12 @@
 """
 Build a minimal ffmpeg.exe for rigdio's loudness analysis.
 
-Rigdio only uses: ffmpeg -i <file> -af volumedetect -f null -
-So we only need a handful of decoders, the volumedetect filter,
-and file protocol support. This produces an ffmpeg.exe around 10-20 MB
-instead of the full ~140 MB.
+Rigdio uses two ffmpeg invocations:
+  1. ffmpeg -i <file> -af volumedetect -f null -        (all songs: mean/peak)
+  2. ffmpeg -i <file> -f s16le -ar 8000 -ac 1 -         (chants only: loud-part RMS)
+So we need a handful of decoders, the volumedetect and aresample filters,
+file+pipe protocols, and null+s16le muxers. This produces an ffmpeg.exe
+around 10-20 MB instead of the full ~140 MB.
 
 This script automatically installs MSYS2 and all required packages if
 they are not already present.
@@ -56,19 +58,23 @@ PARSERS = [
     "mpegaudio", "aac", "ac3", "flac", "opus", "vorbis",
 ]
 
-# Only the volumedetect filter is needed
+# Filters: volumedetect for loudness analysis, aresample for PCM resampling
 FILTERS = [
     "volumedetect", "anull", "aresample",
 ]
 
-# Only file protocol
+# File protocol for input, pipe protocol for PCM output to stdout
 PROTOCOLS = [
     "file",
+    "pipe",
 ]
 
-# Muxers needed (null for -f null output)
+# Muxers: null for volumedetect output, pcm_s16le for raw PCM output (chant loud-part analysis)
+# Note: the configure name is pcm_s16le (maps to CONFIG_PCM_S16LE_MUXER), though ffmpeg -formats
+# displays it as "s16le". The -f s16le flag at runtime uses the display name.
 MUXERS = [
     "null",
+    "pcm_s16le",
 ]
 
 # Encoders needed (pcm_s16le is required by the null muxer)
@@ -140,13 +146,13 @@ def install_msys2():
     print("MSYS2 installed successfully.")
     return install_dir
 
-def run_msys_command(msys2, command, env=None):
+def run_msys_command(msys2, command, env=None, check=True):
     """Run a command inside the MSYS2 bash environment with streamed output."""
     bash = os.path.join(msys2, "usr", "bin", "bash.exe")
     cmd = [bash, "--login", "-c", command]
     print(">> " + " ".join(cmd))
     result = subprocess.run(cmd, env=env, stdout=None, stderr=subprocess.STDOUT)
-    if result.returncode != 0:
+    if check and result.returncode != 0:
         print("ERROR: command failed with exit code {}".format(result.returncode))
         sys.exit(1)
     return result
@@ -279,7 +285,11 @@ def main():
         configure.append("--enable-encoder=" + e)
 
     # 6. Run configure (via MSYS2 bash so ./configure works)
+    # Run make distclean first to remove stale object files from previous builds,
+    # so that changed configure flags (e.g. new muxers) are properly picked up.
     print("\n=== Configuring ffmpeg ===")
+    run_msys_command(msys2, "cd '{}' && mingw32-make distclean || true".format(
+        src_dir.replace("\\", "/")), env=env, check=False)
     configure_cmd = " ".join(configure)
     run_msys_command(msys2, "cd '{}' && {}".format(src_dir.replace("\\", "/"), configure_cmd), env=env)
 

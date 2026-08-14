@@ -9,6 +9,7 @@ defaults = dict(
       alphabetical_sort_chants=0, # sort team chants alphabetically
       chant_timer_enabled_default=1, # enable chant timer by default
       chant_random_decay_weight=0.3, # base for exponential decay weighting when picking random chants (lower = less repeat)
+      chant_loud_part_percent=20, # percentage of loudest 1-second windows used as normalization reference for chants (0-100; lower targets only the loudest part, 100 = whole-track mean)
       dark_mode_enabled=0, # enable dark mode
       show_goalhorn_volume_default=1, # show goalhorn volume sliders by default
       normalize_volume=1, # normalize all music to a consistent loudness level (uses target from level config); replaces individual volume sliders with a single master volume slider
@@ -158,7 +159,8 @@ class ConfigValues:
          'normalize_volume:int',
          'write_to_log:int',
          'write_song_title_log:int',
-         'chant_random_decay_weight:float'
+         'chant_random_decay_weight:float',
+         'chant_loud_part_percent:int'
       ]
       for item in mustBeValid:
          items = item.split(':')

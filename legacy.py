@@ -9,6 +9,8 @@ import time
 import subprocess
 import re
 import threading
+import array
+import math
 from concurrent.futures import ThreadPoolExecutor
 from config import settings
 
@@ -18,28 +20,118 @@ from config import settings
 # without sharing a single MediaPlayer object (which caused concurrency bugs).
 _position_cache = {}
 
-# Cache of loudness analysis results keyed by absolute file path.
+# Cache of loudness measurements keyed by absolute file path.
+# Stores (mean_db, max_db, loud_part_db_or_None, pcm_mean_db_or_None) per file.
+# mean_db / max_db come from ffmpeg volumedetect (whole-track RMS and peak).
+# loud_part_db is the RMS of the loudest portion of the track (top N% of
+# 1-second windows), computed only for chants so that a chant with a long
+# quiet section and a short loud section is normalized based on its loud
+# part rather than being over-boosted by the dragged-down mean.
+# pcm_mean_db is the whole-track RMS from the same PCM decode as loud_part_db,
+# used for the log line so both numbers are consistent (volumedetect's mean
+# uses a different internal decoder path and can differ by a fraction of a dB).
 # Populated lazily by analyze_loudness when a song is played,
 # or proactively by start_background_analysis after loading.
 _loudness_cache = {}
 
-# Track files currently being analyzed to avoid duplicate work.
+# Track files currently being analyzed to avoid duplicate volumedetect calls.
 _loudness_pending = set()
 _loudness_pending_lock = threading.Lock()
 
-def analyze_loudness(filepath, target_db):
-   """Analyze audio loudness using ffmpeg volumedetect and calculate gain needed
-   to reach target_db. Returns (gain_db, needs_limiter) or (None, False) on failure.
-   A limiter is needed when the full gain would cause peak clipping.
-   Thread-safe: uses a lock to prevent duplicate ffmpeg calls for the same file."""
-   fullpath = abspath(filepath)
+# Track files that have already been logged so we don't repeat the analysis
+# summary on every play() call (gain is recomputed from cached measurements
+# each time, but the log line should appear only once per file).
+_loudness_logged = set()
+
+def _run_volumedetect(fullpath):
+   """Run ffmpeg volumedetect and return (mean_db, max_db) or (None, None) on failure."""
+   kwargs = dict(capture_output=True, text=True, errors="replace", timeout=30)
+   if os.name == "nt":
+      kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+   result = subprocess.run(
+      ["ffmpeg", "-vn", "-i", fullpath, "-af", "volumedetect", "-f", "null", "-"],
+      **kwargs
+   )
+   stderr = result.stderr
+   mean_match = re.search(r"mean_volume:\s*(-?[\d.]+)\s*dB", stderr)
+   max_match = re.search(r"max_volume:\s*(-?[\d.]+)\s*dB", stderr)
+   if not mean_match or not max_match:
+      return None, None
+   return float(mean_match.group(1)), float(max_match.group(1))
+
+def _run_loud_part_analysis(fullpath, sample_rate=44100, window_sec=1.0):
+   """Decode audio to mono PCM and compute the RMS of the loudest portion.
+   Returns (loud_part_db, pcm_mean_db) in dBFS, or (None, None) on failure.
+   Also returns pcm_mean_db — the whole-track RMS computed from the same PCM
+   decode — so that both numbers come from identical samples and loud_part_db
+   is guaranteed >= pcm_mean_db (unlike volumedetect's mean, which uses a
+   different internal decoder path and can differ by a fraction of a dB).
+   Splits the track into 1-second windows, computes RMS for each to rank them,
+   then pools all samples from the loudest N% of windows (N from
+   chant_loud_part_percent) and computes a single RMS over those pooled samples.
+   Uses s16le PCM output (signed 16-bit little-endian) which is supported by
+   the minimized ffmpeg build (pcm_s16le encoder + s16le muxer + pipe protocol)."""
+   loud_percent = settings.config.get("chant_loud_part_percent", 20)
+   kwargs = dict(capture_output=True, timeout=60)
+   if os.name == "nt":
+      kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+   result = subprocess.run(
+      ["ffmpeg", "-vn", "-i", fullpath, "-f", "s16le", "-ar", str(sample_rate), "-ac", "1", "-"],
+      **kwargs
+   )
+   pcm = result.stdout
+   if not pcm:
+      return None, None
+   # s16le: signed 16-bit little-endian samples
+   raw = array.array('h')
+   raw.frombytes(pcm)
+   n = len(raw)
+   if n == 0:
+      return None, None
+   window_size = max(1, int(sample_rate * window_sec))
+   # compute (sum_of_squares, sample_count) per 1-second window
+   windows = []
+   total_sum_sq_all = 0
+   for i in range(0, n, window_size):
+      chunk = raw[i:i+window_size]
+      sum_sq = sum(s * s for s in chunk)
+      windows.append((sum_sq, len(chunk)))
+      total_sum_sq_all += sum_sq
+   if not windows:
+      return None, None
+   # whole-track RMS from the same PCM (for consistent comparison)
+   if n == 0 or total_sum_sq_all <= 0:
+      return None, None
+   pcm_mean_rms = math.sqrt(total_sum_sq_all / n) / 32768.0
+   if pcm_mean_rms <= 0:
+      return None, None
+   pcm_mean_db = 20 * math.log10(pcm_mean_rms)
+   # sort by RMS (sum_sq / count) descending, take top loud_percent% of windows
+   windows.sort(key=lambda w: w[0] / w[1], reverse=True)
+   n_loud = max(1, int(len(windows) * loud_percent / 100))
+   # pool all samples from the loudest windows and compute RMS over them
+   total_sum_sq = sum(w[0] for w in windows[:n_loud])
+   total_count = sum(w[1] for w in windows[:n_loud])
+   if total_count == 0 or total_sum_sq <= 0:
+      return None, pcm_mean_db
+   loud_part_rms = math.sqrt(total_sum_sq / total_count) / 32768.0
+   if loud_part_rms <= 0:
+      return None, pcm_mean_db
+   return 20 * math.log10(loud_part_rms), pcm_mean_db
+
+def _ensure_volumedetect(fullpath):
+   """Ensure ffmpeg volumedetect measurements are cached for fullpath.
+   Returns (mean_db, max_db, loud_part_db_or_None, pcm_mean_db_or_None) or None on failure.
+   Thread-safe: uses _loudness_pending to prevent duplicate ffmpeg calls."""
    # fast path: already cached
-   if fullpath in _loudness_cache:
-      return _loudness_cache[fullpath]
+   cached = _loudness_cache.get(fullpath)
+   if cached is not None:
+      return cached if cached[0] is not None else None
    # claim this file or wait for another thread to finish it
    with _loudness_pending_lock:
-      if fullpath in _loudness_cache:
-         return _loudness_cache[fullpath]
+      cached = _loudness_cache.get(fullpath)
+      if cached is not None:
+         return cached if cached[0] is not None else None
       if fullpath in _loudness_pending:
          pending = True
       else:
@@ -49,60 +141,119 @@ def analyze_loudness(filepath, target_db):
       # another thread is analyzing this file; wait for it
       while fullpath not in _loudness_cache:
          time.sleep(0.01)
-      return _loudness_cache[fullpath]
+      cached = _loudness_cache.get(fullpath)
+      if cached is None or cached[0] is None:
+         return None
+      return cached
+   # we claimed the file — run volumedetect
    try:
-      kwargs = dict(capture_output=True, text=True, errors="replace", timeout=30)
-      if os.name == "nt":
-         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-      result = subprocess.run(
-         ["ffmpeg", "-vn", "-i", fullpath, "-af", "volumedetect", "-f", "null", "-"],
-         **kwargs
-      )
-      stderr = result.stderr
-      mean_match = re.search(r"mean_volume:\s*(-?[\d.]+)\s*dB", stderr)
-      max_match = re.search(r"max_volume:\s*(-?[\d.]+)\s*dB", stderr)
-      if not mean_match or not max_match:
+      mean_db, max_db = _run_volumedetect(fullpath)
+      if mean_db is None:
          print("   Could not parse volumedetect output for {}".format(fullpath))
-         result = (None, False)
-         _loudness_cache[fullpath] = result
-         return result
-      mean_db = float(mean_match.group(1))
-      max_db = float(max_match.group(1))
-      gain = target_db - mean_db
-      needs_limiter = (max_db + gain) > 0.0
-      if needs_limiter:
+         _loudness_cache[fullpath] = (None, None, None, None)
+         return None
+      _loudness_cache[fullpath] = (mean_db, max_db, None, None)
+      return _loudness_cache[fullpath]
+   except FileNotFoundError:
+      print("   ffmpeg not found, skipping normalization for {}".format(fullpath))
+      _loudness_cache[fullpath] = (None, None, None, None)
+      return None
+   except Exception as e:
+      print("   Error analyzing loudness for {}: {}".format(fullpath, e))
+      if fullpath not in _loudness_cache:
+         _loudness_cache[fullpath] = (None, None, None, None)
+      return None
+   finally:
+      with _loudness_pending_lock:
+         _loudness_pending.discard(fullpath)
+
+def _ensure_measurements(fullpath, need_loud_part=False):
+   """Ensure loudness measurements are cached for fullpath.
+   If need_loud_part is True, also ensure the loud-part RMS is computed.
+   Returns (mean_db, max_db, loud_part_db_or_None, pcm_mean_db_or_None) or None on failure.
+   Phase 1 (volumedetect) is protected by _loudness_pending to avoid duplicate
+   ffmpeg calls. Phase 2 (loud-part PCM decode) runs without the lock — if two
+   threads request it simultaneously, both will decode, but the result is
+   deterministic so the duplicate write is harmless."""
+   # Phase 1: ensure volumedetect measurements are cached
+   cached = _ensure_volumedetect(fullpath)
+   if cached is None:
+      return None
+   mean_db, max_db, loud_part_db, pcm_mean_db = cached
+   # Phase 2: ensure loud-part RMS is cached (chants only)
+   if need_loud_part and loud_part_db is None:
+      loud_part_db, pcm_mean_db = _run_loud_part_analysis(fullpath)
+      _loudness_cache[fullpath] = (mean_db, max_db, loud_part_db, pcm_mean_db)
+   return _loudness_cache[fullpath]
+
+def analyze_loudness(filepath, target_db, is_chant=False):
+   """Analyze audio loudness and calculate gain needed to reach target_db.
+   For chants, uses the RMS of the loudest portion of the track (top N% of
+   1-second windows, per chant_loud_part_percent) as the reference instead
+   of the whole-track mean, so that a chant with a long quiet section and a
+   short loud section is normalized based on its loud part rather than being
+   over-boosted. Goalhorns, anthems, and victory anthems use the whole-track
+   mean as before (unchanged behavior).
+   Returns (gain_db, needs_limiter) or (None, False) on failure.
+   A limiter is needed when the full gain would cause peak clipping.
+   Thread-safe: uses a lock to prevent duplicate ffmpeg calls for the same file."""
+   fullpath = abspath(filepath)
+   measurements = _ensure_measurements(fullpath, need_loud_part=is_chant)
+   if measurements is None:
+      return None, False
+   mean_db, max_db, loud_part_db, pcm_mean_db = measurements
+   # choose reference: loud-part RMS for chants, whole-track mean for others
+   if is_chant and loud_part_db is not None:
+      reference = loud_part_db
+      # use pcm_mean_db (from the same PCM decode) for the log line so both
+      # numbers are consistent; volumedetect's mean uses a different decoder
+      # path and can differ by a fraction of a dB
+      display_mean = pcm_mean_db if pcm_mean_db is not None else mean_db
+   else:
+      reference = mean_db
+      display_mean = mean_db
+   gain = target_db - reference
+   needs_limiter = (max_db + gain) > 0.0
+   # log once per file so the streamer can see what was decided
+   if fullpath not in _loudness_logged:
+      _loudness_logged.add(fullpath)
+      if is_chant and loud_part_db is not None:
+         print("   {} has loud-part volume of {:.1f} dB (mean: {:.1f} dB) and peak of {:.1f} dB, target is {:.1f} dB; applying {:.1f} dB gain{}.".format(
+            basename(fullpath), loud_part_db, display_mean, max_db, target_db, gain,
+            " with limiter" if needs_limiter else ""))
+      elif needs_limiter:
          print("   {} has mean volume of {:.1f} dB and peak of {:.1f} dB, target is {:.1f} dB; applying {:.1f} dB gain with limiter.".format(
             basename(fullpath), mean_db, max_db, target_db, gain))
       else:
          print("   {} has mean volume of {:.1f} dB and peak of {:.1f} dB, target is {:.1f} dB; applying {:.1f} dB gain.".format(
             basename(fullpath), mean_db, max_db, target_db, gain))
-      result = (gain, needs_limiter)
-      _loudness_cache[fullpath] = result
-      return result
-   except FileNotFoundError:
-      print("   ffmpeg not found, skipping normalization for {}".format(fullpath))
-      _loudness_cache[fullpath] = (None, False)
-      return None, False
-   except Exception as e:
-      print("   Error analyzing loudness for {}: {}".format(fullpath, e))
-      _loudness_cache[fullpath] = (None, False)
-      return None, False
-   finally:
-      with _loudness_pending_lock:
-         _loudness_pending.discard(fullpath)
+   return (gain, needs_limiter)
 
-def start_background_analysis(filepaths, target_db):
+def start_background_analysis(filepaths, target_db, chant_paths=None):
    """Start analyzing loudness for all files in a background thread pool.
    Non-blocking: returns immediately. Results populate _loudness_cache.
-   If a file is played before its analysis completes, play() will wait for it."""
+   If a file is played before its analysis completes, play() will wait for it.
+   chant_paths: iterable of paths for chant files, which receive an additional
+   loud-part RMS analysis pass so normalization targets their loud portion."""
+   chant_set = set(abspath(f) for f in (chant_paths or []))
    unique = set(abspath(f) for f in filepaths if isfile(abspath(f)))
-   to_analyze = [f for f in unique if f not in _loudness_cache and f not in _loudness_pending]
+   to_analyze = []
+   for f in unique:
+      if f in _loudness_pending:
+         continue
+      cached = _loudness_cache.get(f)
+      if cached is None:
+         to_analyze.append((f, f in chant_set))
+      elif cached[0] is None:
+         continue  # previous analysis failed, don't retry
+      elif f in chant_set and cached[2] is None:
+         to_analyze.append((f, True))  # need loud-part pass
    if not to_analyze:
       return
    print("Starting background loudness analysis for {} file(s)...".format(len(to_analyze)))
    def worker():
       with ThreadPoolExecutor(max_workers=min(4, len(to_analyze))) as executor:
-         list(executor.map(lambda f: analyze_loudness(f, target_db), to_analyze))
+         list(executor.map(lambda args: analyze_loudness(args[0], target_db, is_chant=args[1]), to_analyze))
    thread = threading.Thread(target=worker, daemon=True)
    thread.start()
 
@@ -298,7 +449,7 @@ class ConditionPlayer (ConditionList):
          return
       if self.normalize:
          fullpath = abspath(self.songname)
-         gain, needs_limiter = analyze_loudness(fullpath, settings.level["target"])
+         gain, needs_limiter = analyze_loudness(fullpath, settings.level["target"], is_chant=(self.type == "chant"))
          # re-check the flag after the (potentially blocking) analysis: the user
          # may have toggled normalize back off while we waited, in which case
          # applying the gain now would override the freshly applied 0 dB baseline

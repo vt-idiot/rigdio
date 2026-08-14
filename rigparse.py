@@ -70,6 +70,7 @@ def parse (filename, load = True, home = True, progress_callback=None, normalize
    # pre-pass: collect song count for progress UI
    if load:
       pre_files = []
+      chant_pre_files = []
       for line in lines:
          if len(line) == 0 or line[0] == "#":
             continue
@@ -81,12 +82,15 @@ def parse (filename, load = True, home = True, progress_callback=None, normalize
             fancyname = filenames[player] if player in reserved else player
             default = default.format(tname, fancyname)
             data.append(default)
-         pre_files.append(songCheck(folder, data[1], normalize))
+         filepath = songCheck(folder, data[1], normalize)
+         pre_files.append(filepath)
+         if player == "chant":
+            chant_pre_files.append(filepath)
       song_count = len(pre_files)
       if progress_callback:
          progress_callback(-2, song_count)
       if settings.config["normalize_volume"] and normalize:
-         start_background_analysis(pre_files, settings.level["target"])
+         start_background_analysis(pre_files, settings.level["target"], chant_paths=chant_pre_files)
    # main pass: create ConditionPlayer objects
    for line in lines:
       # ignore comments
