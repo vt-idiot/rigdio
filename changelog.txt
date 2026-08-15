@@ -1,4 +1,4 @@
-13/08/26 - Version v2.2.0 & RigDJ v1.16.0
+15/08/26 - Version v2.2.0 & RigDJ v1.16.0
 - Added "normalize;no" modifier in .4ccm files
   Managers with a curated, pre-normalized music export can opt out of loudness
   normalization by writing "normalize;no" below the team name (like "sync;no")
@@ -6,16 +6,23 @@
   that team's tracks (volume boost still applies to louder-marked tracks)
 - Added per-team "Normalize: Yes / No" toggle button below the Reset buttons
   Only shown when normalize_volume is enabled in config.yml
-  Lets the streamer force normalization on for a team that opted out, or turn it
-  off for a team that allowed it, after load
+  Lets the streamer force normalization on for a team that opted out
   "Normalize: No" is shown in bold to make opted-out teams noticeable
+- Chant normalization now focuses on the loudest portion of the track (top 20%) instead
+  of the whole-track mean, preventing over-boosting of chants with long quiet sections
+- Background loudness analysis now prioritizes anthems over goalhorns over chants
+  over victory anthems, minimizing the chance of blocking on anthem playback right
+  after loading a team
+- Added a dedicated Chants Volume slider to the main window, always visible
+  When normalization is enabled, it acts as a dB offset on top of the Master Volume
+  slider (so chants can be made quieter or louder relative to songs)
+  The chants window now always shows the same Chants Volume slider, and the two stay
+  synchronized
 - RigDJ now reads, displays, and preserves the "sync" and "normalize" team flags
-  Both default to checked (enabled); unchecking writes "sync;no" / "normalize;no"
+  Both default to checked (enabled), unchecking writes "sync;no" or "normalize;no"
   to the .4ccm file
 - RigDJ now has a Dark Mode toggle button in the top-right corner
   The setting is saved to config.yml and persists across restarts
-- RigDJ's preview panel now uses the same background colour as the main window
-  to make it clear it's read-only
 - Added a Settings window to rigdio, with descriptions for each setting in the config.yml
 - Undo now restores the cached playback position, warcry flag, and firstPlay state to
   what they were before the goal was scored. Previously Undo only reverted the score,
