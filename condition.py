@@ -163,6 +163,18 @@ class TeamGoalsCondition (GoalCondition):
    def type (self):
       return "teamgoals"
 
+class OpponentGoalsCondition (GoalCondition):
+   desc = """Plays if the total number of goals scored by the opposing team meets the given condition. Use 'opponentgoals == 0' for a clean sheet."""
+
+   def __init__ (self, **kwargs):
+      super().__init__(**kwargs)
+
+   def args (self, gamestate):
+      return (gamestate.opponent_score(self.home),)
+
+   def type (self):
+      return "opponentgoals"
+
 class LeadCondition (GoalCondition):
    desc = """Plays if the goal difference (yourteam - theirteam) meets the given condition."""
 
@@ -773,6 +785,7 @@ class EventInstruction (Instruction):
 conditions = {
    "goals" : GoalCondition,
    "teamgoals" : TeamGoalsCondition,
+   "opponentgoals" : OpponentGoalsCondition,
    "lead" : LeadCondition,
    "opponent" : OpponentCondition,
    "match" : MatchCondition,
